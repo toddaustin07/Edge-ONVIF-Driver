@@ -1,0 +1,25 @@
+{
+    "id": "partyvoice23922.onvifstatus",
+    "version": 1,
+    "status": "proposed",
+    "name": "onvifstatus",
+    "ephemeral": false,
+    "attributes": {
+        "status": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "value": {
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false,
+                "required": [
+                    "value"
+                ]
+            },
+            "enumCommands": []
+        }
+    },
+    "commands": {}
+}

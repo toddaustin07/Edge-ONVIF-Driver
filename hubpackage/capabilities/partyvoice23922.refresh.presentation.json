@@ -1,0 +1,23 @@
+{
+    "dashboard": {
+        "states": [],
+        "actions": [],
+        "basicPlus": []
+    },
+    "detailView": [
+        {
+            "label": "Refresh",
+            "displayType": "pushButton",
+            "pushButton": {
+                "command": "push"
+            },
+            "state": null
+        }
+    ],
+    "automation": {
+        "conditions": [],
+        "actions": []
+    },
+    "id": "partyvoice23922.refresh",
+    "version": 1
+}

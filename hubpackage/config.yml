@@ -1,0 +1,5 @@
+name: 'ONVIF Video Camera V1'
+packageKey: 'onvif_v1'
+permissions:
+    lan: {}
+    discovery: {}

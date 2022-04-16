@@ -1,0 +1,60 @@
+name: onvif_cam.v1
+components:
+  - id: main
+    capabilities:
+      - id: videoStream
+        version: 1
+      - id: motionSensor
+        version: 1
+      - id: partyvoice23922.motionevents
+        version: 1
+    categories:
+      - name: Camera
+  - id: info
+    capabilities:
+      - id: partyvoice23922.onvifstatus
+        version: 1
+      - id: partyvoice23922.onvifinfo
+        version: 1
+      - id: partyvoice23922.refresh
+        version: 1
+preferences:
+  - title: "Auto motion revert"
+    name: autorevert
+    description: "Select behavior"
+    required: true
+    preferenceType: enumeration
+    definition:
+      options:
+        yesauto: "Auto-revert"
+        noauto: "No auto-revert"
+      default: noauto
+  - title: "Auto-revert delay"
+    name: revertdelay
+    description: "Number of seconds"
+    required: false
+    preferenceType: integer
+    definition:
+      minimum: 1
+      maximum: 3600
+      default: 5
+  - title: "UserID"
+    name: userid
+    description: "Camera sign-in userid"
+    required: true
+    preferenceType: string
+    definition:
+      stringType: text
+      minLength: 3
+      maxLength: 36
+      default: "*****"
+  - title: "Password"
+    name: password
+    description: "Camera sign-in password"
+    required: true
+    preferenceType: string
+    definition:
+      stringType: text
+      minLength: 3
+      maxLength: 36
+      default: "*****"

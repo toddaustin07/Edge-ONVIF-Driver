@@ -1,0 +1,33 @@
+{
+    "dashboard": {
+        "states": [],
+        "actions": []
+    },
+    "detailView": [
+        {
+            "label": "Motion Events",
+            "displayType": "switch",
+            "switch": {
+                "command": {
+                    "name": "setSwitch",
+                    "on": "on",
+                    "off": "off",
+                    "argumentType": "string"
+                },
+                "state": {
+                    "value": "switch.value",
+                    "valueType": "string",
+                    "on": "On",
+                    "off": "Off"
+                }
+            },
+            "state": null
+        }
+    ],
+    "automation": {
+        "conditions": [],
+        "actions": []
+    },
+    "id": "partyvoice23922.motionevents",
+    "version": 1
+}

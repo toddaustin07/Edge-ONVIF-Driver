@@ -1,0 +1,10 @@
+id: partyvoice23922.refresh
+version: 1
+status: proposed
+name: refresh
+ephemeral: false
+attributes: {}
+commands:
+  push:
+    name: push
+    arguments: []

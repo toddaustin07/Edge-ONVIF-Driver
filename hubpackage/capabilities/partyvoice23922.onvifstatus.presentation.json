@@ -1,0 +1,21 @@
+{
+    "dashboard": {
+        "states": [],
+        "actions": []
+    },
+    "detailView": [
+        {
+            "label": "Status",
+            "displayType": "state",
+            "state": {
+                "label": "{{status.value}}"
+            }
+        }
+    ],
+    "automation": {
+        "conditions": [],
+        "actions": []
+    },
+    "id": "partyvoice23922.onvifstatus",
+    "version": 1
+}
