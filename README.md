@@ -38,27 +38,35 @@ This is the access credentials required to access your camera, initially set up 
 ### Camera Connection Status
 Once a UserID and Password is provided, connection to the camera will be initiated where additional information will be obtained from the camera and initialization done to enable video streaming and reporting of motion events.  At any time, device history can be examined to see connection status and camera metadata obtained.
 
+## Notes on Security
+Login Passwords are encrypted in all ONVIF messages between the hub and camera.  However there is one case where the password is transmitted on the network 'in the clear' and this unfortunately is a current limitation of the SmartThings platform.  When video streaming is activated to be viewed within the mobile app, the Edge driver is asked for the camera's RTSP streaming URL.  Currently, the only way to inform SmartThings of the UserID and Password is to provide them as part of the RTSP URL (in the form of rtsp://\<UserID\>:\<Password>@<StreamURL\>).  There is no option to provide the Password encrypted.  It is currently unknown how SmartThings authenticates with the camera when it subsequently initiates streaming.
 
 ## Notes on Specific Camera Brands
 The official list of camera models that have passed ONVIF certification can be found at this website:  https://www.onvif.org/conformant-products/.
 
 Even if your camera is not listed there, check the manufacturers documentation to see if they claim ONVIF compatibility.  It should be noted that although a manufacturer may claim ONVIF compliance, it may not be a complete, or fully-functional implementation if it is not on the official conformant product list noted above.  Check the SmartThings community topic for reports on what cameras are working with this driver.
 
-ONVIF defines specific Profiles, which define the feature the camera supports.  This driver requires only the Streaming Profile (Profile S).
+ONVIF defines specific Profiles, which define the feature set the camera supports.  This Edge driver requires only the Streaming Profile (Profile S).
 
 If a camera cannot be discovered, then it probably doesn't support ONVIF.
 
 To date, this driver has been tested with Reolink and Hikvision cameras.
 
 #### Reolink
-Many Reolink cameras should work with this driver, but not all.  
-Confirmed *not* to work:  Model E1PRO
+Many Reolink cameras should work with this driver, but not all.
+
+There are some anomolies in the Reolink ONVIF implementation (Reolink models are not offically conformant). For example, there is a bug in the subscription renewal function where the camera does not set the proper subscription termination time.  However this particular issue should not cause any apparent problems to the user.
+Other camera models return an incorrect subscription reference address used for subscription renewal requests, however this known issue is accounted for in the driver code.  
+
+(These issues expose themselves in the *ONVIF Device Manager* application, which is either unable to show events at all, or the event display stops working after a minute or so.)
+
+Confirmed *not* to work:  Model E1PRO (cannot be discovered)
 
 #### Hikvision
 - ONVIF must be enabled and a specific ONVIF UserID and Password defined with at least 'Media user' access level (Network->Advanced Settings->Integration Protocol)
 
 - RTSP Authentication must be set to 'digest/basic' (System->Security->Authentication)
 
-- Enable motion detection (Event->Basic Event->Motion Detection)
+- Motion detection should be enabled (Event->Basic Event->Motion Detection)
 
-- Video format must be H264 or H264+ for streaming to work in SmartThings
+- Video format must be H264 or H264+ for video streaming to work in the SmartThings mobile app
