@@ -55,7 +55,8 @@ To date, this driver has been tested with Reolink and Hikvision cameras.
 #### Reolink
 Many Reolink cameras should work with this driver, but not all.
 
-There are some anomolies in the Reolink ONVIF implementation (Reolink models are not offically conformant). For example, there is a bug in the subscription renewal function where the camera does not set the proper subscription termination time.  However this particular issue should not cause any apparent problems to the user.
+There are some anomolies in the Reolink ONVIF implementation (Reolink models are not offically conformant). For example, there is a bug in the event subscription renewal function where the camera does not set the proper subscription termination time.  However this particular issue should not cause any apparent problems to the user.
+
 Other camera models return an incorrect subscription reference address used for subscription renewal requests, however this known issue is accounted for in the driver code.  
 
 (These issues expose themselves in the *ONVIF Device Manager* application, which is either unable to show events at all, or the event display stops working after a minute or so.)
