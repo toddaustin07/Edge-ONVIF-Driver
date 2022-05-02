@@ -27,18 +27,7 @@ Due to limitations in the SmartThings Edge platform, video is not available dire
 ### Motion Detection
 The Edge driver subscribes to basic motion change events from the camera and these motion state changes can be used in creating Routines.  The Motion Events switch on the device Control screen must be in the ON position to receive events from the camera.
 
-## Controls screen
-### Main section
-- **Motion sensor**: state of motion (active/inactive)
-
-- **Motion Events**: switch to turn on or off motion event processing
-
-### Info section
-- **Status**:  a text field showing the most recent status of the connection with the camera
-- **Info**:  a table of values retrieved from the camera showing various camera configuration properties
-- **Refresh**:  a button used to force a re-initialization with the camera
-
-## Settings screen
+## Device Settings
 
 ### Minimum motion-active interval
 Use this setting to eliminate multiple rapid motion alerts.  This can be useful if you have routines triggered by motion events, and it also cuts down the number of state changes sent to SmartThings, as well as captured in device history.
@@ -59,9 +48,19 @@ For future use to select ONFIV subscription type to accommodate various camera c
 ### UserID and Password
 This is the access credentials required to access your camera, initially set up in the camera manufacturer's app
 
+## Device Controls screen
+### Main section
+- **Motion sensor**: state of motion (active/inactive)
+
+- **Motion Events**: switch to turn on or off motion event processing
+
+### Info section
+- **Status**:  a text field showing the most recent status of the connection with the camera
+- **Info**:  a table of values retrieved from the camera showing various camera configuration properties
+- **Refresh**:  a button used to force a re-initialization with the camera
+
 ## Device History
 All motion events, streaming requests, status changes, and device data updates will be captured in history.  The Info table can be especially useful to see (1) if your camera device is responding properly, and (2) identifying information about your camera such as IP address, manufacturer, name, profiles, etc.
-
 
 ## Current Limitations
 - Motion events may not work if cameras are on a separate subnet or behind a firewall. Note that this will be addressed in a future driver update.
