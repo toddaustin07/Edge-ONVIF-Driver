@@ -13,6 +13,8 @@ Use my shared projects Edge channel to complete these steps:
 ### Camera device discovery and SmartThings device creation
 Once the driver is installed to your hub, use the SmartThings mobile app to initiate an Add device -> Scan nearby devices.  Your ONVIF-compliant IP cameras will be discovered and SmartThings devices added to the 'No room assigned' room.
 
+Note:  If a camera cannot be discovered, then it probably doesn't support ONVIF.
+
 ## Usage
 
 Once the UserID and Password has been configured in device Settings, the Refresh button on the device Control screen should be tapped to establish connection to the camera and retrieve additional camera configuration data.  If successful, additional information will now be shown in the Info table, and the camera is now ready for streaming video (see below).
@@ -76,8 +78,6 @@ The official list of camera models that have passed ONVIF certification can be f
 Even if your camera is not listed there, check the manufacturers documentation to see if they *claim* ONVIF compatibility.  It should be noted that although a manufacturer may claim ONVIF compliance, it may not be a complete, or fully-functional implementation if it is not on the official conformant product list noted above.  Notes on how this driver works with brand-specific cameras will be updated in this document as they are discovered.
 
 To date, this driver has been tested with Reolink and Hikvision cameras.
-
-Note:  If a camera cannot be discovered, then it probably doesn't support ONVIF.
 
 #### Profiles
 ONVIF defines specific Profiles, which define the feature set the camera supports.  This Edge driver requires only the Streaming Profile (Profile S).
