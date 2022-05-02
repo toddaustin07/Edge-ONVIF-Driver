@@ -38,10 +38,30 @@ This is the access credentials required to access your camera, initially set up 
 ### Camera Connection Status
 Once a UserID and Password is provided, connection to the camera will be initiated where additional information will be obtained from the camera and initialization done to enable video streaming and reporting of motion events.  At any time, device history can be examined to see connection status and camera metadata obtained.
 
+## Usage
+### Controls
+#### Main section
+- Motion sensor: shows the current motion active/inactive state
+
+- Motion Events: turns on or off motion event processing
+
+#### Info section
+- Status:  a text field showing the most recent status of the connection with the camera
+- Info:  a table of values retrieved from the camera showing various camera configuration values
+- Refresh:  a button used to force a re-initialization with the camera
+
+### Initial Setup
+Once the UserID and Password has been configured in device Settings, the Refresh button on the device Control screen should be tapped to establish connection to the camera and retrieve additional camera configuration data.  If successful, additional information will now be shown in the Info table.
+
+### Video Streaming
+Due to limitations in the SmartThings Edge platform, video is not available directly within the SmartThings device Controls screen.  Instead, a SmartThings Camera Group must be created and your ONVIF cameras added to it.  Then using the Camera Group, live video can be displayed from the cameras.
+
+### Motion Detection
+The Edge driver subscribes to basic motion change events from the camera and these motion state changes can be used in creating Routines.
+
 ## Current Limitations
 - Motion events may not work if cameras are on a separate subnet or behind a firewall. Note that this will be addressed in a future driver update.
 - Only generic motion alerts are supported (e.g. no line crossing-specific alerts)
-
 
 ## Notes on Security
 Login Passwords are encrypted in all ONVIF messages between the hub and camera.  However there is one case where the password is transmitted on the network 'in the clear' and this unfortunately is a current limitation of the SmartThings platform.  When video streaming is activated to be viewed within the mobile app, the Edge driver is asked for the camera's RTSP streaming URL.  Currently, the only way to inform SmartThings of the UserID and Password is to provide them as part of the RTSP URL (in the form of rtsp://\<UserID\>:\<Password>@<StreamURL\>).  There is no option to provide the Password encrypted.  It is currently unknown how SmartThings authenticates with the camera when it subsequently initiates streaming.
