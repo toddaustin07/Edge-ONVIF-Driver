@@ -42,7 +42,7 @@ local function xml_to_table(data)
     return handler.root
 
   else
-    log.error ('Does not look like XML response')
+    log.warn ('Not an XML response')
   end
 
 end
@@ -120,9 +120,44 @@ local function disptable(table, tab, maxlevels, currlevel)
   end
 end
 
+
+local function hextoint(hexstring)
+
+  local hexconv = {
+		    ['0'] = 0,
+		    ['1'] = 1,
+		    ['2'] = 2,
+		    ['3'] = 3,
+		    ['4'] = 4,
+		    ['5'] = 5,
+		    ['6'] = 6, 
+		    ['7'] = 7,
+		    ['8'] = 8,
+		    ['9'] = 9,
+		    ['a'] = 10,
+		    ['b'] = 11,
+		    ['c'] = 12,
+		    ['d'] = 13,
+		    ['e'] = 14,
+		    ['f'] = 15,
+		  }
+
+  local intnum = 0
+
+  for i = 1, #hexstring, 2 do
+    local val = (hexconv[string.sub(hexstring, i, i)] * 16) + hexconv[string.sub(hexstring, i+1, i+1)]
+    intnum = intnum + val
+  end
+  
+  return intnum
+
+end
+
+
 return {
 	  xml_to_table = xml_to_table,
 	  is_element = is_element,
 	  strip_xmlns = strip_xmlns,
           disptable = disptable,
+	  hextoint = hextoint,
 }

@@ -2,11 +2,11 @@ name: onvif_cam.v1
 components:
   - id: main
     capabilities:
-      - id: videoStream
-        version: 1
       - id: motionSensor
         version: 1
       - id: partyvoice23922.motionevents
+        version: 1
+      - id: videoStream
         version: 1
     categories:
       - name: Camera
@@ -19,6 +19,15 @@ components:
       - id: partyvoice23922.refresh
         version: 1
 preferences:
+  - title: "Minimum motion-active interval"
+    name: minmotioninterval
+    description: "Number of seconds"
+    required: false
+    preferenceType: integer
+    definition:
+      minimum: 0
+      maximum: 3600
+      default: 10
   - title: "Auto motion revert"
     name: autorevert
     description: "Select behavior"
@@ -38,6 +47,16 @@ preferences:
       minimum: 1
       maximum: 3600
       default: 5
+  - title: "Event Subscription"
+    name: eventmethod
+    description: "Select method"
+    required: true
+    preferenceType: enumeration
+    definition:
+      options:
+        base: "Base"
+        pullpoint: "Pull-point"
+      default: base
   - title: "UserID"
     name: userid
     description: "Camera sign-in userid"

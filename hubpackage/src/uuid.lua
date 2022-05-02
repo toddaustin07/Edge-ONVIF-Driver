@@ -33,9 +33,6 @@
 
 
 local M = {}
-local math = require('math')
-local os = require('os')
-local string = require('string')
 
 local bitsize = 32  -- bitsize assumed for Lua VM. See randomseed function below.
 local lua_version = tonumber(_VERSION:match("%d%.*%d*"))  -- grab Lua version used

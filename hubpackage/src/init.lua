@@ -46,17 +46,12 @@ local cap_motion = capabilities["partyvoice23922.motionevents"]
 
 local disco_sem
 
-local onvifDriver = {}
-local rediscovery_thread
-local rediscover_timer
+onvifDriver = {}
+
 local resub_thread
 local resub_timer
-
 local newly_added = {}
-local unfoundlist = {}
 local discovered_num = 1
-
-local swstate = {}
 
 math.randomseed(socket.gettime())
 
@@ -141,32 +136,59 @@ local function init_infolist(device, ipcam)
 end
 
 
-local function event_handler(device, msg)
+local function event_handler(device, msgs)
 
+  local function proc_msg(device, cam_func, msg)
+  
+    if common.is_element(msg, {'Message', 'Message', 'Data', 'SimpleItem', '_attr', 'Name'}) then
+  
+      local name = msg.Message.Message.Data.SimpleItem._attr.Name
+      local value = msg.Message.Message.Data.SimpleItem._attr.Value
+      
+      if name == cam_func.motion_event_name then
+      
+        log.info (string.format('Motion for %s = %s', device.label, value))
+        
+        if value == 'true' then
+          if (socket.gettime() - device:get_field('LastMotion')) >= device.preferences.minmotioninterval then
+            device:emit_event(capabilities.motionSensor.motion('active'))
+            device:set_field('LastMotion', socket.gettime())
+            if device.preferences.autorevert == 'yesauto' then
+              device.thread:call_with_delay(device.preferences.revertdelay, function() 
+                device:emit_event(capabilities.motionSensor.motion('inactive')); end, 'revert motion')
+            end
+          else
+            log.info ('Motion event ignored')
+          end
+        else
+          device:emit_event(capabilities.motionSensor.motion('inactive'))
+        end
+      else
+        log.warn("Message ignored")
+        if msg.Topic then
+          if msg.Topic[1] then
+            log.warn('\tTopic:', msg.Topic[1])
+          end
+        end
+      end
+    else
+      log.warn('Missing event data item name XML section')
+    end
+  end
+  ----
+  
   log.debug ('Event handler invoked')
   
   local cam_func = device:get_field('onvif_func')
   
-  if common.is_element(msg, {'SimpleItem','_attr','Name'}) then
+  if is_array(msgs) then
   
-    local name = msg['SimpleItem']._attr.Name
-    local value = msg['SimpleItem']._attr.Value
-    
-    if name == cam_func.motion_event_name then
-    
-      log.info (string.format('Motion for %s = %s', device.label, value))
-      
-      if value == 'true' then
-        device:emit_event(capabilities.motionSensor.motion('active'))
-      else
-        device:emit_event(capabilities.motionSensor.motion('inactive'))
-      end
-      
-    else
-      log.warn('Unrecognized event name ignored:', name)
+    for _, msg in ipairs(msgs) do
+      proc_msg(device, cam_func, msg)
     end
+  
   else
-    log.warn('Missing event item name XML section')
+      proc_msg(device, cam_func, msgs)
   end
 end
 
@@ -180,18 +202,21 @@ local function get_cam_config(device)
     
     local infolist = init_infolist(device, meta)
     
-    local cam_datetime = commands.GetSystemDateAndTime(meta.uri.device_service)
+    local cam_datetime = commands.GetSystemDateAndTime(device, meta.uri.device_service)
     
     if cam_datetime then
     
       device:emit_component_event(device.profile.components.info, cap_status.status('Responding'))
-      --device:online()
+      device:online()
+      device:set_field('onvif_online', true)
       
       if (device.preferences.userid ~= '*****') and (device.preferences.password ~= '*****') then
         
         -- GET SCOPES --------------------------------------------------
         
         local scopes = commands.GetScopes(device, meta.uri.device_service)
+        
+        if not scopes then; return; end
         
         log.debug(string.format('Found scopes for %s:', device.label))
         
@@ -252,14 +277,16 @@ local function get_cam_config(device)
         
         device:set_field('onvif_func', onvif_func)
         
-        -- GET PROFILE -------------------------------------------------
+        -- GET PROFILES -------------------------------------------------
         
         local profiles = commands.GetProfiles(device, onvif_func.media_service_addr)
         
         local profilematch
+        
         for _, profile in ipairs(profiles) do
-          if profile._attr.token == onvif_func.video_source_token then
+          if profile.VideoSourceConfiguration.SourceToken == onvif_func.video_source_token then
             profilematch = profile
+            break
           end
         end
         
@@ -267,18 +294,26 @@ local function get_cam_config(device)
         
           -- GET STREAM URI---------------------------------------------
         
-          local uri_info = commands.GetStreamUri(device, onvif_func.video_source_token, onvif_func.media_service_addr)
-          
-          onvif_func.stream_uri = uri_info['Uri']
-          device:set_field('onvif_func', onvif_func)
-          
-          log.debug('Stream URI:', onvif_func.stream_uri)
+          if onvif_func.RTP_RTSP_TCP == 'true' then
+        
+            local uri_info = commands.GetStreamUri(device, profilematch._attr.token, onvif_func.media_service_addr)
+            
+            if uri_info then
+              onvif_func.stream_uri = uri_info['Uri']
+              device:set_field('onvif_func', onvif_func)
+              
+              log.debug('Stream URI:', onvif_func.stream_uri)
+            end
+          else
+            log.warn ('RTSP over TCP is not supported; Streaming not enabled')
+          end
         
         else
           log.error ('Could not find matching profile for token', onvif_func.video_source_token)
+          log.error ('Streaming URI cannot be retrieved; Streaming not enabled')
         end
         
-        -- GET EVENT STUFF ---------------------------------------------
+        -- GET EVENT PROPERTIES ----------------------------------------
         
         local function parse_for_motion_rule(rule, name)
           disptable(rule, '  ', 12)
@@ -296,46 +331,41 @@ local function get_cam_config(device)
         
         local event_properties = commands.GetEventProperties(device, onvif_func.event_service_addr)
         
-        if event_properties['RuleEngine'] then
-        
-          log.debug('Is array?', is_array(event_properties['RuleEngine']))
-          local motion_found = false
+        if event_properties then 
+          if event_properties['RuleEngine'] then
           
-          if is_array(event_properties['RuleEngine']) then
-            
-            for _, rule in ipairs (event_properties['RuleEngine']) do
-              if parse_for_motion_rule(rule, MOTIONRULENAME) then
-                motion_found = true
-              end
+            local motion_found = parse_for_motion_rule(event_properties['RuleEngine'], MOTIONRULENAME)
+                    
+            if motion_found == true then
+              log.debug (string.format('"%s" motion event property found', MOTIONRULENAME))
+              onvif_func.motion_events = true
+              onvif_func.motion_event_name = MOTIONRULENAME
+            else
+              onvif_func.motion_events = false
+              log.warn (string.format('"%s" motion event property NOT found; motion events not supported', MOTIONRULENAME))
             end
+            device:set_field('onvif_func', onvif_func)
             
-          else
-            motion_found = parse_for_motion_rule(event_properties['RuleEngine'], MOTIONRULENAME)
-          end
-                  
-          if motion_found == true then
-            log.debug (string.format('"%s" motion event property found', MOTIONRULENAME))
-            onvif_func.motion_events = true
-            onvif_func.motion_event_name = MOTIONRULENAME
-          else
-            onvif_func.motion_events = false
-          end
-          device:set_field('onvif_func', onvif_func)
+            return true
           
-          return true
-        
+          else
+            log.error ('Missing rule engine section in event properties response')
+          
+          end      
         else
-          log.error('Missing rule engine section in event properties response')
-        
-        end      
-        
+          log.error ('Event properties not available')
+        end
       else
         log.warn ('Userid/Password not configured:', device.label)
       end
       
     else
       device:emit_component_event(device.profile.components.info, cap_status.status('Not responding'))
-      --device:offline()
+      
+      if device:get_field('onvif_online') == false then
+        device:offline()
+        discover.schedule_rediscover(onvifDriver, device, 20, init_device)
+      end
     end
   
   else
@@ -347,80 +377,52 @@ local function get_cam_config(device)
 end
 
 
+local function start_events(device)
+
+  local cam_func = device:get_field('onvif_func')
+  
+  if cam_func.motion_events == true then
+
+    local response = events.subscribe(onvifDriver, device, device:get_field('onvif_func').motion_event_name, event_handler)
+    if response then
+      local cam_func = device:get_field('onvif_func')
+      cam_func.event_source_addr = response.SubscriptionReference.Address
+      device:set_field('onvif_func', cam_func)
+      
+      device:set_field('LastMotion', socket.gettime() - device.preferences.minmotioninterval)
+      
+      device:emit_component_event(device.profile.components.info, cap_status.status('Subscribed to events'))
+      return true
+    else
+      log.error ('Failed to subscribe to motion events', device.label)
+    end
+  else
+    log.warn('Motion events are not available from this camera')
+  end
+end
+
+
 -- Here is where we perform all our device startup tasks
-local function init_device(device)
+function init_device(device)
 
   if get_cam_config(device) then
     
     if device:get_latest_state("main", cap_motion.ID, cap_motion.switch.NAME) == 'On' then
-      if not events.subscribe(onvifDriver, device, device:get_field('onvif_func').motion_event_name, event_handler) then
-        log.error ('Failed to subscribe to motion events', device.label)
-        return
-      end
+      
+      start_events(device)
+        
     end
-    log.info(string.format('%s successfully initialized', device.label))
+    
+    log.info(string.format('%s initialized', device.label))
+    device:online()
+    
   else
     log.error ('Failed to initialize device', device.label)
-  end
-
-end
-
-
--- Scheduled re-discover retry routine for unfound devices (stored in unfoundlist table)
--- We'll do a broader search here with 'ssdp:all' in case some badly behaved devices don't respond to specific uuid search target
-local function proc_rediscover()
-
-  if next(unfoundlist) ~= nil then
-  
-    log.debug ('Running periodic re-discovery process for uninitialized devices:')
-    for device_network_id, table in pairs(unfoundlist) do
-      log.debug (string.format('\t%s (%s)', device_network_id:match('([^#]+)##'), table.device.label))
+    
+    if device:get_field('onvif_online') == false then
+      device:offline()
+      discover.schedule_rediscover(onvifDriver, device, 20, init_device)
     end
-  
-    upnp.discover(TARGETDEVICESEARCH, 3,    
-                    function (upnpdev)
-      
-                      for device_network_id, table in pairs(unfoundlist) do
-                        
-                        if device_network_id:match('([^#]+)##') == upnpdev.uuid then
-                        
-                          local device = table.device
-                          local callback = table.callback
-                          
-                          log.info (string.format('Known device <%s (%s)> re-discovered at %s', device.id, device.label, upnpdev.ip))
-                          
-                          unfoundlist[device_network_id] = nil
-                          callback(device, upnpdev)
-                        end
-                      end
-                    end,
-                  false,
-                  false
-    )
-  
-     -- give discovery some time to finish
-    socket.sleep(20)
-    -- Reschedule this routine again if still unfound devices
-    if next(unfoundlist) ~= nil then
-      rediscover_timer = rediscovery_thread:call_with_delay(40, proc_rediscover, 're-discover routine')
-    else
-      rediscovery_thread:close()
-    end
-  end
-end
-
-
-local function schedule_rediscover(device, delay)
-  
-  if next(unfoundlist) == nil then
-    unfoundlist[device.device_network_id] = { ['device'] = device, ['callback'] = startup_device }
-    log.warn ('\tScheduling re-discover routine for later')
-    if not rediscovery_thread then
-      rediscovery_thread = Thread.Thread(upnpDriver, 'rediscover thread')
-    end
-    rediscover_timer = rediscovery_thread:call_with_delay(delay, proc_rediscover, 're-discover routine')
-  else
-    unfoundlist[device.device_network_id] = { ['device'] = device, ['callback'] = startup_device }
   end
 
 end
@@ -448,12 +450,15 @@ local function handle_switch(driver, device, command)
     if cam_func.motion_events == true then
     
       if command.args.value == 'On' then
-        if events.subscribe(driver, device, cam_func.motion_event_name, event_handler) then
+        if start_events(device) then
           device:emit_event(cap_motion.switch('On'))
           return
         end
       elseif command.args.value == 'Off' then
+        commands.Unsubscribe(device, cam_func.event_service_addr)
+        log.info('Unsubscribed to events for', device.label)
         events.shutdownserver(driver, device)
+        device:emit_component_event(device.profile.components.info, cap_status.status('Unsubscribed to events'))
       end
     else
       log.debug('Motion events not available for', device.label)
@@ -485,14 +490,14 @@ local function handle_stream(driver, device, command)
       if cam_func.stream_uri then
       
         local build_url = 'rtsp://' .. device.preferences.userid .. ':' .. device.preferences.password .. '@' .. cam_func.stream_uri:match('//(.+)') 
-        log.debug ('Stream URL for SmartThings:', build_url)
+        log.debug ('Providing stream URL to SmartThings:', cam_func.stream_uri)
         live_video.InHomeURL = build_url
         --live_video.OutHomeURL = build_url
       end
     
     end
     
-    device:emit_event(capabilities.videoStream.stream(live_video))
+    device:emit_event(capabilities.videoStream.stream(live_video, { visibility = { displayed = false } }))
     
   end
 
@@ -530,9 +535,8 @@ local function device_added (driver, device)
     
     device:emit_event(capabilities.motionSensor.motion('inactive'))
     device:emit_event(cap_motion.switch('Off'))
-    
     device:emit_component_event(device.profile.components.info, cap_status.status('Not configured'))
-
+    
   else
     log.error ('IPCam meta data not found for new device')               -- this should never happen!
   end
@@ -556,6 +560,10 @@ local function device_removed(driver, device)
   
   log.info("<" .. device.id .. "> removed")
   
+  if device:get_field('onvif_func') then
+    commands.Unsubscribe(device, device:get_field('onvif_func').event_service_addr)
+  end
+  
   events.shutdownserver(driver, device)
   
   local device_list = driver:get_devices()
@@ -578,14 +586,23 @@ local function handler_infochanged(driver, device, event, args)
         device:emit_component_event(device.profile.components.info, cap_status.status('Tap Refresh to connect'))
       end
     elseif args.old_st_store.preferences.password ~= device.preferences.password then 
-      log.info ('Password updated to', device.preferences.password)
+      log.info ('Password updated')
       if device.preferences.userid ~= '*****' then
         device:emit_component_event(device.profile.components.info, cap_status.status('Tap Refresh to connect'))
       end
+      
+    elseif args.old_st_store.preferences.minmotioninterval ~= device.preferences.minmotioninterval then 
+      log.info ('Min Motion interval updated to', device.preferences.minmotioninterval)
+      
+    elseif args.old_st_store.preferences.eventmethod ~= device.preferences.eventmethod then 
+      log.info ('Event subscription method updated to', device.preferences.eventmethod)
+    
     elseif args.old_st_store.preferences.autorevert ~= device.preferences.autovert then 
       log.info ('Motion auto-revert updated to', device.preferences.autorevert)
+      
     elseif args.old_st_store.preferences.revertdelay ~= device.preferences.revertdelay then 
       log.info ('Motion auto-revert delay updated to', device.preferences.revertdelay)
+      
     else
       -- Assume driver is restarting - shutdown everything
       log.debug ('****** DRIVER RESTART ASSUMED ******')

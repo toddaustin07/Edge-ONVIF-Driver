@@ -22,6 +22,7 @@
 local cosock = require "cosock"
 local socket = require "cosock.socket"
 
+local Thread = require "st.thread"
 local log = require "log"
 
 local common = require "common"
@@ -32,6 +33,9 @@ local listen_ip = "0.0.0.0"
 local listen_port = 0
 
 local ids_found = {}                -- used to filter duplicate usn's during discovery
+local unfoundlist = {}
+local rediscovery_thread
+local rediscover_timer
 
 local APP_MAX_DELAY = 500
 
@@ -180,7 +184,74 @@ local function discover (waitsecs, callback, reset)
 end
 
 
+-- Scheduled re-discover retry routine for unfound devices (stored in unfoundlist table)
+local function proc_rediscover()
+
+  if next(unfoundlist) ~= nil then
+  
+    log.debug ('Running periodic re-discovery process for uninitialized devices:')
+    for device_network_id, table in pairs(unfoundlist) do
+      log.debug (string.format('\t%s (%s)', device_network_id, table.device.label))
+    end
+  
+    discover(5, function (ipcam)
+
+		  for device_network_id, table in pairs(unfoundlist) do
+		    
+		    if device_network_id == ipcam.urn then
+		    
+		      local device = table.device
+		      local callback = table.callback
+		      
+		      log.info (string.format('Known device <%s (%s)> re-discovered at %s', ipcam.urn, device.label, ipcam.ip))
+		      
+		      local devmeta = device:get_field('onvif_disco')
+		      devmeta.uri = ipcam.uri
+		      devmeta.ip = ipcam.ip
+		      devmeta.vendname = ipcam.vendname
+		      devmeta.hardware = ipcam.hardware
+		      devmeta.location = ipcam.location
+		      devmeta.profiles = ipcam.profiles
+		      devmeta.urn = ipcam.urn
+		      device:set_field('onvif_disco', ipcam, {['persist'] = true })
+		      
+		      unfoundlist[device_network_id] = nil
+		      callback(device)
+		    end
+		  end
+		end,
+		true			-- reset prior discovered device list to force re-finding
+	    )
+	    
+     -- give discovery some time to finish
+    socket.sleep(10)
+    -- Reschedule this routine again if still unfound devices
+    if next(unfoundlist) ~= nil then
+      rediscover_timer = rediscovery_thread:call_with_delay(50, proc_rediscover, 're-discover routine')
+    else
+      rediscovery_thread:close()
+    end
+  end
+end
+
+
+local function schedule_rediscover(driver, device, delay, callback)
+  
+  if next(unfoundlist) == nil then
+    unfoundlist[device.device_network_id] = { ['device'] = device, ['callback'] = callback }
+    log.warn ('\tScheduling re-discover routine for later')
+    if not rediscovery_thread then
+      rediscovery_thread = Thread.Thread(driver, 'rediscover thread')
+    end
+    rediscover_timer = rediscovery_thread:call_with_delay(delay, proc_rediscover, 're-discover routine')
+  else
+    unfoundlist[device.device_network_id] = { ['device'] = device, ['callback'] = callback }
+  end
+
+end
+
+
 return {
   discover = discover,
-
+  schedule_rediscover = schedule_rediscover,
 }
