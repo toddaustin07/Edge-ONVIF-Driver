@@ -10,10 +10,8 @@ Use my shared projects Edge channel to complete these steps:
 1. Enroll hub in my shared projects Edge channel
 2. Choose to install driver 'ONVIF Video Camera V1'
 
+### Camera device discovery and SmartThings device creation
 Once the driver is installed to your hub, use the SmartThings mobile app to initiate an Add device -> Scan nearby devices.  Your ONVIF-compliant IP cameras will be discovered and SmartThings devices added to the 'No room assigned' room.
-
-After discovery is complete, go in to each device Settings screen and set the configuration options described below.
-
 
 ## Usage
 
