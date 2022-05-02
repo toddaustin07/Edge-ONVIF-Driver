@@ -29,16 +29,14 @@ The Edge driver subscribes to basic motion change events from the camera and the
 
 ## Controls screen
 ### Main section
-- Motion sensor: state of motion (active/inactive)
+- **Motion sensor**: state of motion (active/inactive)
 
-- Motion Events: switch to turn on or off motion event processing
+- **Motion Events**: switch to turn on or off motion event processing
 
 ### Info section
-- Status:  a text field showing the most recent status of the connection with the camera
-- ### Camera Connection Status
-
-- Info:  a table of values retrieved from the camera showing various camera configuration values
-- Refresh:  a button used to force a re-initialization with the camera
+- **Status**:  a text field showing the most recent status of the connection with the camera
+- **Info**:  a table of values retrieved from the camera showing various camera configuration values
+- **Refresh**:  a button used to force a re-initialization with the camera
 
 ## Settings screen
 
