@@ -35,7 +35,7 @@ The Edge driver subscribes to basic motion change events from the camera and the
 
 ### Info section
 - **Status**:  a text field showing the most recent status of the connection with the camera
-- **Info**:  a table of values retrieved from the camera showing various camera configuration values
+- **Info**:  a table of values retrieved from the camera showing various camera configuration properties
 - **Refresh**:  a button used to force a re-initialization with the camera
 
 ## Settings screen
