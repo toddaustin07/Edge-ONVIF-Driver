@@ -14,54 +14,60 @@ Once the driver is installed to your hub, use the SmartThings mobile app to init
 
 After discovery is complete, go in to each device Settings screen and set the configuration options described below.
 
-### Device Configuration Settings
 
-#### Minimum motion-active interval
+## Usage
+
+Once the UserID and Password has been configured in device Settings, the Refresh button on the device Control screen should be tapped to establish connection to the camera and retrieve additional camera configuration data.  If successful, additional information will now be shown in the Info table, and the camera is now ready for streaming video (see below).
+
+At this point, the user may choose to enable motion events by turning the Motion Events switch to ON.  If the motion events are successfully turned on, then the switch will remain in the ON position, and the Info Status field will be updated to 'Subscribed to events'.  If the switch reverts back to OFF position, this means that motion events are not available or an error occurred during motion event initialization.  At any time, motion events can be turned back OFF using the Motion Events switch.  The Info Status field will then be updated to 'Unsubscribed to events'.
+
+### Video Streaming
+Due to limitations in the SmartThings Edge platform, video is not available directly within the SmartThings device Controls screen.  Instead, a SmartThings Camera Group must be created and your ONVIF cameras added to it.  Then tapping on the Camera Group, live video will be displayed from the cameras.
+
+### Motion Detection
+The Edge driver subscribes to basic motion change events from the camera and these motion state changes can be used in creating Routines.  The Motion Events switch on the device Control screen must be in the ON position to receive events from the camera.
+
+## Controls screen
+### Main section
+- Motion sensor: state of motion (active/inactive)
+
+- Motion Events: switch to turn on or off motion event processing
+
+### Info section
+- Status:  a text field showing the most recent status of the connection with the camera
+- ### Camera Connection Status
+
+- Info:  a table of values retrieved from the camera showing various camera configuration values
+- Refresh:  a button used to force a re-initialization with the camera
+
+## Settings screen
+
+### Minimum motion-active interval
 Use this setting to eliminate multiple rapid motion alerts.  This can be useful if you have routines triggered by motion events, and it also cuts down the number of state changes sent to SmartThings, as well as captured in device history.
 
-Values can be any number of seconds up to 3,600 (one hour).  For example a value of 10 means allow only one motion alert within a 10 second window.  A value of 0 effectively turns this option off.  Note that some cameras allow a similar configuration setting through the manufacturer app.
+Values can be any number of seconds up to 3,600 (one hour).  For example a value of 10 means allow only one motion active alert within a 10 second window.  A value of 0 effectively turns this option off.  Note that some cameras allow a similar configuration setting through the manufacturer app.
 
-#### Auto motion revert
+### Auto motion revert
 Use this setting to force motion to inactive regardless of when/if the inactive event is received from the camera.
 
-#### Auto-revert delay
+### Auto-revert delay
 Use this setting when Auto motion revert is set to 'Auto-revert'.  
 
 Value provided is the number of seconds to wait - after an active motion is received - to revert motion to inactive.
 
-#### Event Subscription
+### Event Subscription
 For future use to select ONFIV subscription type to accommodate various camera capabilities
 
-#### UserID and Password
+### UserID and Password
 This is the access credentials required to access your camera, initially set up in the camera manufacturer's app
 
-### Camera Connection Status
-Once a UserID and Password is provided, connection to the camera will be initiated where additional information will be obtained from the camera and initialization done to enable video streaming and reporting of motion events.  At any time, device history can be examined to see connection status and camera metadata obtained.
+## Device History
+All motion events, streaming requests, status changes, and device data updates will be captured in history.  The Info table can be especially useful to see (1) if your camera device is responding properly, and (2) identifying information about your camera such as IP address, manufacturer, name, profiles, etc.
 
-## Usage
-### Controls
-#### Main section
-- Motion sensor: shows the current motion active/inactive state
-
-- Motion Events: turns on or off motion event processing
-
-#### Info section
-- Status:  a text field showing the most recent status of the connection with the camera
-- Info:  a table of values retrieved from the camera showing various camera configuration values
-- Refresh:  a button used to force a re-initialization with the camera
-
-### Initial Setup
-Once the UserID and Password has been configured in device Settings, the Refresh button on the device Control screen should be tapped to establish connection to the camera and retrieve additional camera configuration data.  If successful, additional information will now be shown in the Info table.
-
-### Video Streaming
-Due to limitations in the SmartThings Edge platform, video is not available directly within the SmartThings device Controls screen.  Instead, a SmartThings Camera Group must be created and your ONVIF cameras added to it.  Then using the Camera Group, live video can be displayed from the cameras.
-
-### Motion Detection
-The Edge driver subscribes to basic motion change events from the camera and these motion state changes can be used in creating Routines.
 
 ## Current Limitations
 - Motion events may not work if cameras are on a separate subnet or behind a firewall. Note that this will be addressed in a future driver update.
-- Only generic motion alerts are supported (e.g. no line crossing-specific alerts)
+- Only generic motion alerts are supported
 
 ## Notes on Security
 Login Passwords are encrypted in all ONVIF messages between the hub and camera.  However there is one case where the password is transmitted on the network 'in the clear' and this unfortunately is a current limitation of the SmartThings platform.  When video streaming is activated to be viewed within the mobile app, the Edge driver is asked for the camera's RTSP streaming URL.  Currently, the only way to inform SmartThings of the UserID and Password is to provide them as part of the RTSP URL (in the form of rtsp://\<UserID\>:\<Password>@<StreamURL\>).  There is no option to provide the Password encrypted.  It is currently unknown how SmartThings authenticates with the camera when it subsequently initiates streaming.
@@ -69,15 +75,16 @@ Login Passwords are encrypted in all ONVIF messages between the hub and camera. 
 ## Notes on Specific Camera Brands
 The official list of camera models that have passed ONVIF certification can be found at this website:  https://www.onvif.org/conformant-products/.
 
-Even if your camera is not listed there, check the manufacturers documentation to see if they claim ONVIF compatibility.  It should be noted that although a manufacturer may claim ONVIF compliance, it may not be a complete, or fully-functional implementation if it is not on the official conformant product list noted above.  Check the SmartThings community topic for reports on what cameras are working with this driver.
-
-ONVIF defines specific Profiles, which define the feature set the camera supports.  This Edge driver requires only the Streaming Profile (Profile S).
-
-If a camera cannot be discovered, then it probably doesn't support ONVIF.
+Even if your camera is not listed there, check the manufacturers documentation to see if they *claim* ONVIF compatibility.  It should be noted that although a manufacturer may claim ONVIF compliance, it may not be a complete, or fully-functional implementation if it is not on the official conformant product list noted above.  Notes on how this driver works with brand-specific cameras will be updated in this document as they are discovered.
 
 To date, this driver has been tested with Reolink and Hikvision cameras.
 
-#### Reolink
+Note:  If a camera cannot be discovered, then it probably doesn't support ONVIF.
+
+#### Profiles
+ONVIF defines specific Profiles, which define the feature set the camera supports.  This Edge driver requires only the Streaming Profile (Profile S).
+
+### Reolink
 Many Reolink cameras should work with this driver, but not all.
 
 There are some anomolies in the Reolink ONVIF implementation (Reolink models are not offically conformant). For example, there is a bug in the event subscription renewal function where the camera does not set the proper subscription termination time.  However this particular issue should not cause any apparent problems to the user.
@@ -88,7 +95,7 @@ Other camera models return an incorrect subscription reference address used for 
 
 Confirmed *not* to work:  Model E1PRO (cannot be discovered)
 
-#### Hikvision
+### Hikvision
 - ONVIF must be enabled and a specific ONVIF UserID and Password defined with at least 'Media user' access level (Network->Advanced Settings->Integration Protocol)
 
 - RTSP Authentication must be set to 'digest/basic' (System->Security->Authentication)
