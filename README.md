@@ -43,7 +43,7 @@ Use this setting when Auto motion revert is set to 'Auto-revert'.
 Value provided is the number of seconds to wait - after an active motion is received - to revert motion to inactive.
 
 ### Event Subscription
-For future use to select ONFIV subscription type to accommodate various camera capabilities
+For future use to select ONVIF subscription type to accommodate various camera capabilities
 
 ### UserID and Password
 This is the access credentials required to access your camera, initially set up in the camera manufacturer's app
