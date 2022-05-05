@@ -81,7 +81,7 @@ Login Passwords are encrypted in all ONVIF messages between the hub and camera. 
 ## Notes on Specific Camera Brands
 The official list of camera models that have passed ONVIF certification can be found at this website:  https://www.onvif.org/conformant-products/.
 
-Even if your camera is not listed there, check the manufacturers documentation to see if they *claim* ONVIF compatibility.  It should be noted that although a manufacturer may claim ONVIF compliance, it may not be a complete, or fully-functional implementation if it is not on the official conformant product list noted above.  Notes on how this driver works with brand-specific cameras will be updated in this document as they are discovered.
+Even if your camera is not listed there, check the manufacturer's documentation to see if they *claim* ONVIF compatibility.  It should be noted that although a manufacturer may claim ONVIF compliance, it may not be a complete, or fully-functional implementation if it is not on the official conformant product list noted above.  Notes on how this driver works with brand-specific cameras will be updated in this document as they are discovered.
 
 To date, this driver has been tested with Reolink and Hikvision cameras.
 
