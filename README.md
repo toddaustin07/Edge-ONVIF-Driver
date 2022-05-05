@@ -73,7 +73,7 @@ All motion events, streaming requests, status changes, and device data updates w
   - Only generic motion alerts are supported
 
 ## Notes on Security
-Login Passwords are encrypted in all ONVIF messages between the hub and camera.  However there is one case where the password is transmitted on the network 'in the clear' and this unfortunately is a current limitation of the SmartThings platform.  When video streaming is activated to be viewed within the mobile app, the Edge driver is asked for the camera's RTSP streaming URL.  Currently, the only way to inform SmartThings of the UserID and Password is to provide them as part of the RTSP URL (in the form of rtsp://\<UserID\>:\<Password>@<StreamURL\>).  There is no option to provide the Password encrypted.  It is currently unknown how SmartThings authenticates with the camera when it subsequently initiates streaming.
+Login Passwords are encrypted in all ONVIF messages between the hub and camera.  However there is one case where the password is transmitted on the network 'in the clear' and this unfortunately is a current limitation of the SmartThings platform.  When video streaming is activated to be viewed within the mobile app, the Edge driver is asked for the camera's RTSP streaming URL.  Currently, the only way to inform SmartThings of the UserID and Password is to provide them as part of the RTSP URL (in the form of rtsp://\<UserID\>:\<Password>@<StreamURL\>).  There is no option to provide the Password encrypted.
 
 ## Notes on Specific Camera Brands
 The official list of camera models that have passed ONVIF certification can be found at this website:  https://www.onvif.org/conformant-products/.
