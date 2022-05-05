@@ -59,11 +59,11 @@ This is the access credentials required to access your camera, initially set up 
 
 ### Info section
 - **Status**:  a text field showing the most recent status of the connection with the camera
-- **Info**:  a table of values retrieved from the camera showing various camera configuration properties
+- **Info**:  a table of values retrieved from the camera showing various camera configuration properties; The Info table can be especially useful to see (1) if your camera device is responding properly, and (2) identifying information about your camera such as IP address, manufacturer, name, profiles, etc.
 - **Refresh**:  a button used to force a re-initialization with the camera
 
 ## Device History
-All motion events, status changes, and device data updates will be captured in history.  The Info table can be especially useful to see (1) if your camera device is responding properly, and (2) identifying information about your camera such as IP address, manufacturer, name, profiles, etc.
+All motion events, status changes, and device data updates will be captured in history.
 
 ## Current Limitations
 - Video
