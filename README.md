@@ -99,7 +99,7 @@ Other camera models return an incorrect subscription reference address used for 
 
 Confirmed to work: E1Pro, C1Pro, RLC-410W, RLC-411S, RLC-411WS, RLC-422, RLC-520, RLC-820A
 
-Confirmed *not* to work (cannot be discovered):  Model E1, possibly 510W   
+Confirmed *not* to work (cannot be discovered):  Model E1, 510W   
 
 ### Hikvision
 - ONVIF must be enabled and a specific ONVIF UserID and Password defined with at least 'Media user' access level (Network->Advanced Settings->Integration Protocol)
