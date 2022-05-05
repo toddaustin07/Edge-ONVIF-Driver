@@ -63,7 +63,7 @@ This is the access credentials required to access your camera, initially set up 
 - **Refresh**:  a button used to force a re-initialization with the camera
 
 ## Device History
-All motion events, status changes, and device data updates will be captured in history.
+All motion events, status changes, and device info table updates will be captured in history.
 
 ## Current Limitations
 - Video
