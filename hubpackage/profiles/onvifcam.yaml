@@ -47,6 +47,16 @@ preferences:
       minimum: 1
       maximum: 3600
       default: 5
+  - title: "Video Stream Selection"
+    name: stream
+    description: "Select Stream"
+    required: true
+    preferenceType: enumeration
+    definition:
+      options:
+        mainstream: "Main Stream"
+        substream: "Sub Stream"
+      default: substream
   - title: "Event Subscription"
     name: eventmethod
     description: "Select method"

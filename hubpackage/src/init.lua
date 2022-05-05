@@ -281,22 +281,32 @@ local function get_cam_config(device)
         
         local profiles = commands.GetProfiles(device, onvif_func.media_service_addr)
         
-        local profilematch
+        local substream_token, profile_name, stream_type
+        
+        if not device.preferences.stream then
+          stream_type = 'substream'
+        else
+          stream_type = device.preferences.stream
+        end
         
         for _, profile in ipairs(profiles) do
-          if profile.VideoSourceConfiguration.SourceToken == onvif_func.video_source_token then
-            profilematch = profile
+
+          log.debug('\tFound profile', profile.Name)
+          profile_name = profile.Name
+          if string.lower(profile_name):find(stream_type, 1, 'plaintext') then
+            substream_token = profile._attr.token
             break
           end
         end
         
-        if profilematch ~= nil then
+        if substream_token ~= nil then
+          log.info (string.format('Using profile name=%s, token=%s', profile_name, substream_token)) 
         
           -- GET STREAM URI---------------------------------------------
         
           if onvif_func.RTP_RTSP_TCP == 'true' then
         
-            local uri_info = commands.GetStreamUri(device, profilematch._attr.token, onvif_func.media_service_addr)
+            local uri_info = commands.GetStreamUri(device, substream_token, onvif_func.media_service_addr)
             
             if uri_info then
               onvif_func.stream_uri = uri_info['Uri']
@@ -305,12 +315,11 @@ local function get_cam_config(device)
               log.debug('Stream URI:', onvif_func.stream_uri)
             end
           else
-            log.warn ('RTSP over TCP is not supported; Streaming not enabled')
+            log.warn ('RTSP over TCP is not supported; Streaming disabled')
           end
         
         else
-          log.error ('Could not find matching profile for token', onvif_func.video_source_token)
-          log.error ('Streaming URI cannot be retrieved; Streaming not enabled')
+          log.error ('Could not find substream profile; Streaming disabled')
         end
         
         -- GET EVENT PROPERTIES ----------------------------------------
@@ -594,10 +603,13 @@ local function handler_infochanged(driver, device, event, args)
     elseif args.old_st_store.preferences.minmotioninterval ~= device.preferences.minmotioninterval then 
       log.info ('Min Motion interval updated to', device.preferences.minmotioninterval)
       
+    elseif args.old_st_store.preferences.stream ~= device.preferences.stream then 
+      log.info ('Video stream changed to', device.preferences.stream)  
+      
     elseif args.old_st_store.preferences.eventmethod ~= device.preferences.eventmethod then 
       log.info ('Event subscription method updated to', device.preferences.eventmethod)
     
-    elseif args.old_st_store.preferences.autorevert ~= device.preferences.autovert then 
+    elseif args.old_st_store.preferences.autorevert ~= device.preferences.autorevert then 
       log.info ('Motion auto-revert updated to', device.preferences.autorevert)
       
     elseif args.old_st_store.preferences.revertdelay ~= device.preferences.revertdelay then 
