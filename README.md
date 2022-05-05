@@ -42,6 +42,9 @@ Use this setting when Auto motion revert is set to 'Auto-revert'.
 
 Value provided is the number of seconds to wait - after an active motion is received - to revert motion to inactive.
 
+### Video Stream Selection
+Use this setting to control which stream - main or sub - to use to view your camera.  After changing this value you **must** Refresh the device for it to take effect.
+
 ### Event Subscription
 For future use to select ONVIF subscription type to accommodate various camera capabilities
 
@@ -65,7 +68,7 @@ All motion events, streaming requests, status changes, and device data updates w
 ## Current Limitations
 - Video
   - Streaming is fairly limited to what the SmartThings mobile app currently allows.  At present, the only way to view video streams with this driver is to create a camera group and view the video streams through via the group.  This by definition requires more than one camera to create a group.
-  - The video stream displayed via a camera group is the camera's subtream, which is typically a low resolution (e.g. 360H x 640W or 480H x 640W). This was a conscious decision for now.  It is possible to use the main stream which is whatever resolution is configured by the camera and this may be made a configuration preference in a future driver
+  - The video stream displayed via a camera group defaults to the camera's **sub**stream, which is typically a lower resolution (e.g. 360H x 640W or 480H x 640W) and commonly referred to as a preview stream. This was a conscious decision since SmartThings is unable to display multiple video streams at higher resolution.
   - Andriod users will benefit from some viewing options that are not available on iOS
   - It appears that video through camera groups cannot be viewed when the mobile app is connected via cellular, so it is available only when connected to the home network
 - Motion
