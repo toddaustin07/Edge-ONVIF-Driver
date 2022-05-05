@@ -7,7 +7,7 @@ Supports motion detection and streaming from ONVIF-compliant IP cameras
 - ONVIF-compliant IP camera supporting Profile S (Streaming) 
 ## Installation Steps
 Use my shared projects Edge channel to complete these steps:
-1. Enroll hub in my shared projects Edge channel
+1. Enroll hub in my shared projects Edge channel:  https://bestow-regional.api.smartthings.com/invite/Q1jP7BqnNNlL
 2. Choose to install driver 'ONVIF Video Camera V1'
 
 ### Camera device discovery and SmartThings device creation
