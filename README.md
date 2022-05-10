@@ -76,6 +76,9 @@ All motion events, status changes, and device info table updates will be capture
   - Only generic motion alerts are supported
 
 ## Notes on Security
+
+Do not use camera passwords with the characters '@' or '?'.
+
 Login Passwords are encrypted in all ONVIF messages between the hub and camera.  However there is one case where the password is transmitted on the network 'in the clear' and this unfortunately is a current limitation of the SmartThings platform.  When video streaming is activated to be viewed within the mobile app, the Edge driver is asked for the camera's RTSP streaming URL.  Currently, the only way to inform SmartThings of the UserID and Password is to provide them as part of the RTSP URL (in the form of rtsp://\<UserID\>:\<Password>@<StreamURL\>).  There is no option to provide the Password encrypted.
 
 ## Notes on Specific Camera Brands
@@ -111,3 +114,6 @@ Confirmed *not* to work (cannot be discovered):  Model E1, 510W
 - Video format must be H264 or H264+ for video streaming to work in the SmartThings mobile app.  Due to SmartThings limitations the maximum size for screen resolution is 1920 x 1080
 
 Confirmed to work:  DS-2CD2335FWD-I, DS-2DE4215IW
+
+### Annke
+Confirmed to work:  ANNKE C800 4K PoE (Model designation: I91BF)
