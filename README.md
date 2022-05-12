@@ -49,7 +49,8 @@ Use this setting to control which stream - main or sub - to use to view your cam
 For future use to select ONVIF subscription type to accommodate various camera capabilities
 
 ### UserID and Password
-This is the access credentials required to access your camera, initially set up in the camera manufacturer's app
+This is the access credentials required to access your camera, initially set up in the camera manufacturer's app.
+- **Do not use camera passwords containing the characters '@' or '?'.**
 
 ## Device Controls screen
 ### Main section
@@ -76,8 +77,6 @@ All motion events, status changes, and device info table updates will be capture
   - Only generic motion alerts are supported
 
 ## Notes on Security
-
-Do not use camera passwords with the characters '@' or '?'.
 
 Login Passwords are encrypted in all ONVIF messages between the hub and camera.  However there is one case where the password is transmitted on the network 'in the clear' and this unfortunately is a current limitation of the SmartThings platform.  When video streaming is activated to be viewed within the mobile app, the Edge driver is asked for the camera's RTSP streaming URL.  Currently, the only way to inform SmartThings of the UserID and Password is to provide them as part of the RTSP URL (in the form of rtsp://\<UserID\>:\<Password>@<StreamURL\>).  There is no option to provide the Password encrypted.
 
