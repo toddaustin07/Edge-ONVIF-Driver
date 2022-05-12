@@ -117,3 +117,6 @@ Confirmed to work:  DS-2CD2335FWD-I, DS-2DE4215IW
 
 ### Annke
 Confirmed to work:  ANNKE C800 4K PoE (Model designation: I91BF)
+
+### Foscam
+Confirmed to work: R2 V4
