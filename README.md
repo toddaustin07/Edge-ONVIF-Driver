@@ -45,6 +45,9 @@ Value provided is the number of seconds to wait - after an active motion is rece
 ### Video Stream Selection
 Use this setting to control which stream - main or sub - to use to view your camera.  After changing this value you **must** Refresh the device for it to take effect.
 
+### Motion Rule Selection
+Most Profile S cameras support the *RuleEngine/CellMotionDetector* rule for triggering motion events, so this is the default rule used by the driver.  However if you have a Profile T camera, you can alternatively use the *VideoSource/MotionAlarm* rule to activate SmartThings motion.  After changing this value you **must** Refresh the device for it to take effect.
+
 ### Event Subscription
 For future use to select ONVIF subscription type to accommodate various camera capabilities
 
@@ -119,3 +122,6 @@ Confirmed to work:  ANNKE C800 4K PoE (Model designation: I91BF)
 
 ### Foscam
 Confirmed to work: R2 V4
+
+### Axis
+Confirmed to work: 
