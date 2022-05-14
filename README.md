@@ -55,7 +55,7 @@ Most Profile S cameras support the *RuleEngine/CellMotionDetector* rule for trig
 For future use to select ONVIF subscription type.  Note that the current version of this driver supports the *WS-Basic Notifications* specification.  *Pull-Point Notifications* will be supported at a later date, which will address cases where cameras are behind a firewall or on another subnet.
 
 ### UserID and Password
-This is the access credentials required to access your camera, initially set up in the camera manufacturer's app.
+This is the access credentials required to access your camera, initially set up in the camera manufacturer's app.  Note that some brands of cameras, such as Hikvision, require unique ONVIF credentials to be configured in the camera's application.  See Hikvision notes below.
 - **Do not use camera passwords containing the characters '@' or '?'.**
 
 ## Device Controls screen
