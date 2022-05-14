@@ -28,7 +28,7 @@ Due to limitations in the SmartThings Edge platform, video is not available dire
 The Edge driver subscribes to basic motion change events from the camera and these motion state changes can be used in creating Routines.  The Motion Events switch on the device Control screen must be in the ON position to receive events from the camera.
 
 ### Cameras without static IP addresses
-Some cameras may occasionally change IP addresses if they are not configured on your network router to have static IP addresses.  If motion events are enabled for the SmartThings camera device OR if a Refresh is initiated, and the camera cannot be found at its former IP address, then the driver will automatically initiate a periodic re-discovery process until it finds the camera again and determines its new IP address.
+Some cameras may occasionally change IP addresses if they are not assigned static IP addresses on your router.  If motion events are enabled for the SmartThings camera device OR if a Refresh is initiated, and the camera cannot be found at its former IP address, then the driver will automatically initiate a periodic re-discovery process until it finds the camera again and determines its new IP address.
 
 ## Device Settings
 
