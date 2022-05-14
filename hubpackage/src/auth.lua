@@ -63,14 +63,17 @@ local function refresh_client_nonce(nonce_len)
 
 end
 
-local function get_client_nonce(device, length)
+local function get_client_nonce(device, length, authtype)
 
-  local client_nonce = device:get_field('onvif_cnonce')
-  
-  if client_nonce then
+  if authtype == 'http' then
 
-    if (socket.gettime() - client_nonce.epochtime) <= MAX_NONCE_LIFE then
-      return client_nonce
+    local client_nonce = device:get_field('onvif_cnonce')
+    
+    if client_nonce then
+
+      if (socket.gettime() - client_nonce.epochtime) <= MAX_NONCE_LIFE then
+        return client_nonce
+      end
     end
   end
     
@@ -88,7 +91,7 @@ local function build_UsernameToken(device)
   local userid = device.preferences.userid
   local password = device.preferences.password
   
-  local client_nonce = get_client_nonce(device, WSUSERNAMETOKEN_NONCE_LEN)
+  local client_nonce = get_client_nonce(device, WSUSERNAMETOKEN_NONCE_LEN, 'wss')
 
   local base64_digest = base64.encode(sha1.binary(client_nonce.binary .. client_nonce.created .. password))
   
@@ -123,14 +126,14 @@ end
 local function build_authheader(device, method, fullurl, authdata)
 
   -- Example authdata:
-  --   'Digest qop="auth", realm="IP Camera(C2053)", nonce="4e47597a596d59314f4449364d7a4e694e5445354e32553d", stale="FALSE"'
+  --   'Digest qop="auth", realm="IP Camera(C2053)", nonce="4e47597a596d59314f4449364d7a4e694e5445354e32553d", stale=FALSE, algorithm=MD5'
 
   
   if authdata.type == 'Digest' then
   
     if authdata.algorithm then
-      if string.lower(algorithm) ~= 'md5' then
-        log.error ('Unsupported authentation algorithm:', algorithm)
+      if string.lower(authdata.algorithm) ~= 'md5' then
+        log.error ('Unsupported authentation algorithm:', authdata.algorithm)
         return
       end
     end
@@ -164,7 +167,7 @@ local function build_authheader(device, method, fullurl, authdata)
     local cnonce, h_nonce_count
     
     if authdata.qop then
-      cnonce = get_client_nonce(device, HTTPDIGEST_CNONCE_LEN)
+      cnonce = get_client_nonce(device, HTTPDIGEST_CNONCE_LEN, 'http')
       h_nonce_count = string.format('%08x', authinfo.nonce_count)
       authinfo.priornonce = authdata.nonce
       response = md5.sumhexa(ha1 .. ':' .. authdata.nonce .. ':' .. h_nonce_count .. ':' .. cnonce.hex .. ':' .. authdata.qop .. ':' .. ha2)
@@ -192,6 +195,7 @@ local function build_authheader(device, method, fullurl, authdata)
     local authheader =  'Digest ' .. 
                         'username="' .. userid .. '", ' ..
                         'realm="' .. authdata.realm .. '", ' ..
+                        'algorithm=MD5, ' ..
                         'nonce="' .. authdata.nonce .. '", ' ..
                         'uri="' .. uri .. '", ' ..
                         'response="' .. response .. '"' ..
@@ -199,6 +203,8 @@ local function build_authheader(device, method, fullurl, authdata)
                         qop ..
                         clientnonce ..
                         nc 
+    
+    log.debug ('Constructed auth header:', authheader)
     
     authinfo.type = 'http'
     authinfo.authdata = authdata

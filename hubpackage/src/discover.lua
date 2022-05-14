@@ -42,21 +42,21 @@ local APP_MAX_DELAY = 500
 -- multicast WSdiscovery query
 local discover0 = [[
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing">
-	<s:Header>
-		<a:Action s:mustUnderstand="1">
-			http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe
-		</a:Action>
-		<a:MessageID>uuid:bd26a53c-c043-4e00-9d2e-d8469c7808ee</a:MessageID>
-		<a:ReplyTo><a:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:Address></a:ReplyTo>
-		<a:To s:mustUnderstand="1">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To>
-	</s:Header>
-	<s:Body>
-		<Probe xmlns="http://schemas.xmlsoap.org/ws/2005/04/discovery">
-			<d:Types xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dp0="http://www.onvif.org/ver10/network/wsdl">
-				dp0:NetworkVideoTransmitter
-			</d:Types>
-		</Probe>
-	</s:Body>
+  <s:Header>
+    <a:Action s:mustUnderstand="1">
+      http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe
+    </a:Action>
+    <a:MessageID>uuid:bd26a53c-c043-4e00-9d2e-d8469c7808ee</a:MessageID>
+    <a:ReplyTo><a:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:Address></a:ReplyTo>
+    <a:To s:mustUnderstand="1">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To>
+  </s:Header>
+  <s:Body>
+    <Probe xmlns="http://schemas.xmlsoap.org/ws/2005/04/discovery">
+      <d:Types xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dp0="http://www.onvif.org/ver10/network/wsdl">
+        dp0:NetworkVideoTransmitter
+      </d:Types>
+    </Probe>
+  </s:Body>
 </s:Envelope>
 ]]
 
@@ -71,17 +71,34 @@ local function parse(data)
   
     parsed_xml = common.strip_xmlns(parsed_xml)
     
-    --common.disptable(parsed_xml, '  ', 12)
     if parsed_xml['Envelope'] then
     
-      if parsed_xml['Envelope']['Body']['ProbeMatches'] then
+      if common.is_element(parsed_xml, {'Envelope', 'Body', 'ProbeMatches'}) then
+      
+	common.disptable(parsed_xml['Envelope']['Body']['ProbeMatches'], '  ', 10)
+      
         metadata.uri = {}
         
 	local service_addrs = parsed_xml['Envelope']['Body']['ProbeMatches']['ProbeMatch']['XAddrs']
 	for addr in service_addrs:gmatch('[^ ]+') do
+	
+	  -- Address format possibilities:
+	  --  IPV4: http://192.168.0.64/onvif/device_service
+	  --  IPV6: http://[fe80::66db:8bff:fe61:56da]/onvif/device_service
+	  --  hostname:  http://AminDSNEW:5357/a0d7119e-8b35-42a2-8db9-d7a26ab0b761
+	
+	  -- is it an IPV4 address?
 	  local ipv4 = addr:match('^(http://)([%d%.:]+)/')
 	  if ipv4 then
 	    metadata.uri.device_service = addr
+	    break
+	  end
+	  
+	  -- is it a host name?
+	  local hostname = addr:match('^(http://)([%w:]+)/')
+	  if hostname then
+	    metadata.uri.device_service = addr
+	    break
 	  end
 	end
 	
@@ -91,23 +108,38 @@ local function parse(data)
 	
 	metadata.scopes = {}
 	metadata.profiles = {}
-        local scopestring = parsed_xml['Envelope']['Body']['ProbeMatches']['ProbeMatch']['Scopes']
-        for item in scopestring:gmatch('[^ ]+') do
-          table.insert(metadata.scopes, item)
-          if item:find('/name/') then
-            metadata.vendname = item:match('/name/(.+)$')
-          elseif item:find('/location/') then
-            metadata.location = item:match('/location/(.+)$')
-          elseif item:find('/hardware/') then
-            metadata.hardware = item:match('/hardware/(.+)$')
-          elseif item:find('/Profile/') then
-	    table.insert(metadata.profiles, item:match('/Profile/(.+)$'))
-          end
-        end
-        metadata.urn = parsed_xml['Envelope']['Body']['ProbeMatches']['ProbeMatch']['EndpointReference']['Address']
+	metadata.vendname = ''
+	metadata.location = ''
+	metadata.hardware = ''
+	
+	if common.is_element(parsed_xml, {'Envelope', 'Body', 'ProbeMatches', 'ProbeMatch', 'Scopes'}) then
+	
+	  local scopestring = parsed_xml['Envelope']['Body']['ProbeMatches']['ProbeMatch']['Scopes']
+	  for item in scopestring:gmatch('[^ ]+') do
+	    table.insert(metadata.scopes, item)
+	    if item:find('/name/') then
+	      metadata.vendname = item:match('/name/(.+)$')
+	    elseif item:find('/location/') then
+	      metadata.location = item:match('/location/(.+)$')
+	    elseif item:find('/hardware/') then
+	      metadata.hardware = item:match('/hardware/(.+)$')
+	    elseif item:find('/Profile/') then
+	      table.insert(metadata.profiles, item:match('/Profile/(.+)$'))
+	    end
+	  end
+	else
+	  log.warn ('No Scopes found in discovery response')
+	end
+	
+	if common.is_element(parsed_xml, {'Envelope', 'Body', 'ProbeMatches', 'ProbeMatch', 'EndpointReference', 'Address'}) then
+	  metadata.urn = parsed_xml['Envelope']['Body']['ProbeMatches']['ProbeMatch']['EndpointReference']['Address']
+	else
+	  log.warn ('EndpointReference Address not found in discovery response')
+	end
+	
 	return metadata
         
-      elseif parsed_xml['Envelope']['Body']['Fault'] then
+      elseif common.is_element(parsed_xml, {'Envelope', 'Body', 'Fault'}) then
 	log.error ('SOAP ERROR:', parsed_xml['Envelope']['Body']['Fault']['Reason']['Text'][1])
       else
 	log.error ('Unexpected discovery response:', data)
@@ -135,7 +167,9 @@ local function discover (waitsecs, callback, reset)
 
   local timeouttime = socket.gettime() + waitsecs + .5 -- + 1/2 for network delay
 
-  s:sendto(discover0, multicast_ip, multicast_port)
+  local sendmsg = common.compact_XML(discover0)
+
+  s:sendto(sendmsg, multicast_ip, multicast_port)
 
   while true do
     local time_remaining = math.max(0, timeouttime-socket.gettime())
@@ -158,16 +192,17 @@ local function discover (waitsecs, callback, reset)
 	    streamprofile = profile
 	  end
 	end
-	if streamprofile then
-          cam_meta.ip = rip
-          cam_meta.port = port
-          cam_meta.addr = rip .. ':' .. tostring(port)
-
-          callback(cam_meta)
-          
-        else
-          log.warn ('No Streaming profile in discovered device')
+	
+	if not streamprofile then
+	  log.warn ('No Streaming profile identified by discovered device')
         end
+	
+	cam_meta.ip = rip
+	cam_meta.port = port
+	cam_meta.addr = rip .. ':' .. tostring(port)
+
+	callback(cam_meta)
+          
       end
 
     elseif rip == "timeout" then

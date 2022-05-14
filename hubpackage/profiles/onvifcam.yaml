@@ -18,6 +18,8 @@ components:
         version: 1
       - id: partyvoice23922.refresh
         version: 1
+metadata:
+  ocfDeviceType: oic.d.camera
 preferences:
   - title: "Minimum motion-active interval"
     name: minmotioninterval
@@ -57,6 +59,16 @@ preferences:
         mainstream: "Main Stream"
         substream: "Sub Stream"
       default: substream
+  - title: "Motion Rule Selection"
+    name: motionrule
+    description: "Select Rule"
+    required: true
+    preferenceType: enumeration
+    definition:
+      options:
+        cell: "RuleEngine/CellMotionDetector"
+        alarm: "VideoSource/MotionAlarm"
+      default: cell
   - title: "Event Subscription"
     name: eventmethod
     description: "Select method"

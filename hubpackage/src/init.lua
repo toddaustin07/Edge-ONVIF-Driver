@@ -120,13 +120,13 @@ local function init_infolist(device, ipcam)
   local infolist = {}
 
   table.insert(infolist, 'IP addr: ' .. ipcam.ip)
-  table.insert(infolist, 'Name: ' .. ipcam.vendname)
-  table.insert(infolist, 'Hardware: ' .. ipcam.hardware)
-  table.insert(infolist, 'Location: ' .. ipcam.location)
+  if ipcam.vendname then; table.insert(infolist, 'Name: ' .. ipcam.vendname); end
+  if ipcam.hardware then; table.insert(infolist, 'Hardware: ' .. ipcam.hardware); end
+  if ipcam.location then; table.insert(infolist, 'Location: ' .. ipcam.location); end
   for _, profile in ipairs(ipcam.profiles) do
     table.insert(infolist, 'Profile: ' .. profile)
   end
-  table.insert(infolist, ipcam.urn)
+  if ipcam.urn then; table.insert(infolist, ipcam.urn); end
   
   device:emit_component_event(device.profile.components.info, cap_info.info(build_html(infolist)))
   
@@ -140,39 +140,55 @@ local function event_handler(device, msgs)
 
   local function proc_msg(device, cam_func, msg)
   
-    if common.is_element(msg, {'Message', 'Message', 'Data', 'SimpleItem', '_attr', 'Name'}) then
+    local valid = false
   
-      local name = msg.Message.Message.Data.SimpleItem._attr.Name
-      local value = msg.Message.Message.Data.SimpleItem._attr.Value
+    if cam_func.motion_events == true then
+    
+      local name, value
+      if not msg.Topic then
+        log.error ('Missing topic in event message')
+      end
+    
+      local topic = msg.Topic[1]
+    
+      if topic:find(cam_func.motion_eventrule.topic, 1, 'plaintext') then
       
-      if name == cam_func.motion_event_name then
+        if common.is_element(msg, {'Message', 'Message', 'Data', 'SimpleItem', '_attr', 'Name'}) then
       
-        log.info (string.format('Motion for %s = %s', device.label, value))
-        
-        if value == 'true' then
-          if (socket.gettime() - device:get_field('LastMotion')) >= device.preferences.minmotioninterval then
-            device:emit_event(capabilities.motionSensor.motion('active'))
-            device:set_field('LastMotion', socket.gettime())
-            if device.preferences.autorevert == 'yesauto' then
-              device.thread:call_with_delay(device.preferences.revertdelay, function() 
-                device:emit_event(capabilities.motionSensor.motion('inactive')); end, 'revert motion')
+          name = msg.Message.Message.Data.SimpleItem._attr.Name
+          value = msg.Message.Message.Data.SimpleItem._attr.Value
+      
+          if name == cam_func.motion_eventrule.item then
+            log.info (string.format('%s event received event for %s', topic, device.label))
+            log.info (string.format('\tMotion value = %s (%s)', value, type(value)))
+            valid = true
+            
+            if (value == 'true') or (value == '1') or (value == 1) then
+              if (socket.gettime() - device:get_field('LastMotion')) >= device.preferences.minmotioninterval then
+                device:emit_event(capabilities.motionSensor.motion('active'))
+                device:set_field('LastMotion', socket.gettime())
+                if device.preferences.autorevert == 'yesauto' then
+                  device.thread:call_with_delay(device.preferences.revertdelay, function() 
+                    device:emit_event(capabilities.motionSensor.motion('inactive')); end, 'revert motion')
+                end
+              else
+                log.info ('Motion event ignored due to configured min interval')
+              end
+              
+            else
+              device:emit_event(capabilities.motionSensor.motion('inactive'))
             end
           else
-            log.info ('Motion event ignored')
+            log.error ('Item name mismatch with event message:', name)
           end
         else
-          device:emit_event(capabilities.motionSensor.motion('inactive'))
-        end
-      else
-        log.warn("Message ignored")
-        if msg.Topic then
-          if msg.Topic[1] then
-            log.warn('\tTopic:', msg.Topic[1])
-          end
+          log.error ('Missing event item name/value')
         end
       end
-    else
-      log.warn('Missing event data item name XML section')
+    end
+        
+    if valid == false then
+      log.warn(string.format('Message for %s ignored (topic=%s)', device.label, msg.Topic[1]))
     end
   end
   ----
@@ -202,13 +218,19 @@ local function get_cam_config(device)
     
     local infolist = init_infolist(device, meta)
     
-    local cam_datetime = commands.GetSystemDateAndTime(device, meta.uri.device_service)
+    local datetime = commands.GetSystemDateAndTime(device, meta.uri.device_service)
     
-    if cam_datetime then
+    if datetime then
     
       device:emit_component_event(device.profile.components.info, cap_status.status('Responding'))
       device:online()
       device:set_field('onvif_online', true)
+      
+      table.insert(infolist, 'Last refresh hub: ' .. datetime.hub .. ' UTC')
+      table.insert(infolist, 'Last refresh cam: ' .. datetime.cam .. ' UTC')
+      device:emit_component_event(device.profile.components.info, cap_info.info(build_html(infolist)))
+      device:set_field('onvif_info', infolist)
+      
       
       if (device.preferences.userid ~= '*****') and (device.preferences.password ~= '*****') then
         
@@ -239,17 +261,23 @@ local function get_cam_config(device)
         
         local infotable = commands.GetDeviceInformation(device, meta.uri.device_service)
         
+        if not infotable then; return; end
+        
         for key, value in pairs(infotable) do
           log.debug ('\t' .. key, value)
-          table.insert(infolist, key .. ': ' .. value)
+          if type(value) ~= 'table' then
+            table.insert(infolist, key .. ': ' .. value)
+          end
         end
             
         device:emit_component_event(device.profile.components.info, cap_info.info(build_html(infolist)))
         device:set_field('onvif_info', infolist)
-        
+          
         -- GET CAPABILITIES --------------------------------------------
         
         local capabilities = commands.GetCapabilities(device, meta.uri.device_service)
+        
+        if not capabilities then; return; end
         
         local onvif_func = {}
         
@@ -272,6 +300,8 @@ local function get_cam_config(device)
         
         local videosources = commands.GetVideoSources(device, onvif_func.media_service_addr)
         
+        if not videosources then; return; end
+        
         onvif_func.video_source_token = videosources._attr.token
         log.debug ('Video source token:', videosources._attr.token)
         
@@ -281,77 +311,111 @@ local function get_cam_config(device)
         
         local profiles = commands.GetProfiles(device, onvif_func.media_service_addr)
         
-        local substream_token, profile_name, stream_type
+        if not profiles then; return; end
         
-        if not device.preferences.stream then
-          stream_type = 'substream'
+        local substream_token, profile_name, stream_idx
+        local res_width, res_height
+        
+        if device.preferences.stream == 'mainstream' then
+          stream_idx = 1
         else
-          stream_type = device.preferences.stream
+          stream_idx = 2
         end
         
-        for _, profile in ipairs(profiles) do
-
-          log.debug('\tFound profile', profile.Name)
-          profile_name = profile.Name
-          if string.lower(profile_name):find(stream_type, 1, 'plaintext') then
-            substream_token = profile._attr.token
-            break
+        if is_array(profiles) then
+          if #profiles == 1 then
+            stream_idx = 1
+            log.warn ('Only one video profile available')
+          end
+          profile_name = profiles[stream_idx].Name
+          substream_token = profiles[stream_idx]._attr.token
+          if common.is_element(profiles[stream_idx], { 'VideoEncoderConfiguration', 'Resolution' }) then
+            res_width = profiles[stream_idx].VideoEncoderConfiguration.Resolution.Width
+            res_height = profiles[stream_idx].VideoEncoderConfiguration.Resolution.Height
+          end
+        
+        else
+          log.warn ('Single video profile only')
+          profile_name = profiles.Name
+          substream_token = profiles._attr.token
+          if common.is_element(profiles, { 'VideoEncoderConfiguration', 'Resolution' }) then
+            res_width = profiles.VideoEncoderConfiguration.Resolution.Width
+            res_height = profiles.VideoEncoderConfiguration.Resolution.Height
           end
         end
         
-        if substream_token ~= nil then
-          log.info (string.format('Using profile name=%s, token=%s', profile_name, substream_token)) 
+        log.info (string.format('Using profile name=%s, token=%s', profile_name, substream_token))
         
-          -- GET STREAM URI---------------------------------------------
+        if res_width and res_height then
+          local restext = string.format('Resolution: %dw x %dh', res_width, res_height)
+          log.info (string.format('\t%s', restext))
+          table.insert(infolist, restext)
+          device:emit_component_event(device.profile.components.info, cap_info.info(build_html(infolist)))
+          device:set_field('onvif_info', infolist)
+        end
         
-          if onvif_func.RTP_RTSP_TCP == 'true' then
-        
-            local uri_info = commands.GetStreamUri(device, substream_token, onvif_func.media_service_addr)
+        -- GET STREAM URI---------------------------------------------
+      
+        if onvif_func.RTP_RTSP_TCP == 'true' then
+      
+          local uri_info = commands.GetStreamUri(device, substream_token, onvif_func.media_service_addr)
+          
+          if uri_info then
+            onvif_func.stream_uri = uri_info['Uri']
+            device:set_field('onvif_func', onvif_func)
             
-            if uri_info then
-              onvif_func.stream_uri = uri_info['Uri']
-              device:set_field('onvif_func', onvif_func)
-              
-              log.debug('Stream URI:', onvif_func.stream_uri)
-            end
-          else
-            log.warn ('RTSP over TCP is not supported; Streaming disabled')
+            log.debug('Stream URI:', onvif_func.stream_uri)
           end
-        
         else
-          log.error ('Could not find substream profile; Streaming disabled')
+          log.warn ('RTSP over TCP is not supported; Streaming disabled')
         end
+        
         
         -- GET EVENT PROPERTIES ----------------------------------------
-        
-        local function parse_for_motion_rule(rule, name)
-          disptable(rule, '  ', 12)
-          
-          if common.is_element(rule, {'CellMotionDetector','Motion','MessageDescription','Data','SimpleItemDescription','_attr','Name'}) then
-        
-            if rule['CellMotionDetector']['Motion']['MessageDescription']['Data']['SimpleItemDescription']._attr.Name == name then
-              return true
-            end
-          end
-          return false
-        end
-        
-        local MOTIONRULENAME = 'IsMotion'         -- **** May vary by manufacturer! ****
         
         local event_properties = commands.GetEventProperties(device, onvif_func.event_service_addr)
         
         if event_properties then 
           if event_properties['RuleEngine'] then
           
-            local motion_found = parse_for_motion_rule(event_properties['RuleEngine'], MOTIONRULENAME)
-                    
-            if motion_found == true then
-              log.debug (string.format('"%s" motion event property found', MOTIONRULENAME))
+            local CELLMOTION = { ['topic'] = 'RuleEngine/CellMotionDetector/Motion', ['item'] = 'IsMotion' }
+            local MOTIONALARM = { ['topic'] = 'VideoSource/MotionAlarm', ['item'] = 'State' }
+            
+            local rules = event_properties['RuleEngine']
+            local motionOK = false
+            local eventrule
+            
+            disptable(rules, '  ', 12)
+          
+            if (device.preferences.motionrule == 'cell') or (device.preferences.motionrule == nil) then
+          
+              if rules.CellMotionDetector then
+                if common.is_element(rules, {'CellMotionDetector','Motion','MessageDescription','Data','SimpleItemDescription','_attr','Name'}) then
+                  if rules.CellMotionDetector.Motion.MessageDescription.Data.SimpleItemDescription._attr.Name == CELLMOTION.item then
+                    motionOK = true
+                    eventrule = CELLMOTION
+                    log.debug ('CellMotionDetector found')
+                  end
+                else
+                  log.error ('isMotion item not found in CellMotionDetector XML')
+                end
+              else
+                log.warn ('CellMotionDetector rule is not available from this camera')
+              end  
+              
+            elseif device.preferences.motionrule == 'alarm' then
+              motionOK = true
+              eventrule = MOTIONALARM
+            
+            end
+            
+            if motionOK == true then
+              log.info (string.format('Motion events enabled; using topic %s, item %s', eventrule.topic, eventrule.item))
               onvif_func.motion_events = true
-              onvif_func.motion_event_name = MOTIONRULENAME
+              onvif_func.motion_eventrule = eventrule
             else
               onvif_func.motion_events = false
-              log.warn (string.format('"%s" motion event property NOT found; motion events not supported', MOTIONRULENAME))
+              log.warn ('Motion events not enabled')
             end
             device:set_field('onvif_func', onvif_func)
             
@@ -468,6 +532,7 @@ local function handle_switch(driver, device, command)
         log.info('Unsubscribed to events for', device.label)
         events.shutdownserver(driver, device)
         device:emit_component_event(device.profile.components.info, cap_status.status('Unsubscribed to events'))
+        device:emit_event(capabilities.motionSensor.motion('inactive'))
       end
     else
       log.debug('Motion events not available for', device.label)
@@ -533,7 +598,7 @@ local function device_added (driver, device)
 
   log.info(string.format('ADDED handler: <%s (%s)> successfully added; device_network_id = %s', device.id, device.label, device.device_network_id))
   
-  -- get UPnP metadata that was squirreled away when device was created
+  -- get camera metadata that was squirreled away when device was created
   local ipcam = newly_added[urn]
   
   if ipcam ~= nil then
@@ -589,14 +654,16 @@ local function handler_infochanged(driver, device, event, args)
   
   if args.old_st_store.preferences then
   
+    local reinit = false
+  
     if args.old_st_store.preferences.userid ~= device.preferences.userid then 
       log.info ('UserID updated to', device.preferences.userid)
-      if device.preferences.userid ~= '*****' then
+      if (device.preferences.userid ~= '*****') and (device.preferences.password ~= '*****') then
         device:emit_component_event(device.profile.components.info, cap_status.status('Tap Refresh to connect'))
       end
     elseif args.old_st_store.preferences.password ~= device.preferences.password then 
       log.info ('Password updated')
-      if device.preferences.userid ~= '*****' then
+      if (device.preferences.userid ~= '*****') and (device.preferences.password ~= '*****') then
         device:emit_component_event(device.profile.components.info, cap_status.status('Tap Refresh to connect'))
       end
       
@@ -605,6 +672,11 @@ local function handler_infochanged(driver, device, event, args)
       
     elseif args.old_st_store.preferences.stream ~= device.preferences.stream then 
       log.info ('Video stream changed to', device.preferences.stream)  
+      reinit = true
+      
+    elseif args.old_st_store.preferences.motionrule ~= device.preferences.motionrule then 
+      log.info ('Motion rule changed to', device.preferences.motionrule)
+      reinit = true
       
     elseif args.old_st_store.preferences.eventmethod ~= device.preferences.eventmethod then 
       log.info ('Event subscription method updated to', device.preferences.eventmethod)
@@ -619,7 +691,15 @@ local function handler_infochanged(driver, device, event, args)
       -- Assume driver is restarting - shutdown everything
       log.debug ('****** DRIVER RESTART ASSUMED ******')
     end
-    
+
+
+    --[[
+    if reinit == true then
+      if (device.preferences.userid ~= '*****') and (device.preferences.password ~= '*****') then
+        init_device(device)
+      end
+    end
+    --]]
   end
 end
 
@@ -627,10 +707,8 @@ end
 -- If the hub's IP address changes, this handler is called
 local function lan_info_changed_handler(driver, hub_ipv4)
   if driver.listen_ip == nil or hub_ipv4 ~= driver.listen_ip then
-    log.info("Hub IP address has changed, restarting eventing server and resubscribing")
+    log.info("Hub IP address has changed; need to restart driver")
     
-    upnp.reset(driver)                                                  -- reset device monitor and subscription event server
-    resubscribe_all(driver)
   end
 end
 
@@ -647,7 +725,8 @@ local function discovery_handler(driver, _, should_continue)
     known_devices[device.device_network_id] = true
   end
 
-  local waittime = 20
+  local waittime = 15
+  local reset_option = true
 
   -- We'll limit our discovery to repeat_count to minimize unnecessary LAN traffic
 
@@ -708,9 +787,11 @@ local function discovery_handler(driver, _, should_continue)
                       log.debug("Discovered device was already known")
                     end
                   end,
-                  false
+                  reset_option
     )
     --***************************************************************************
+    
+    reset_option = false
     
   end
   log.info("Driver is exiting discovery")

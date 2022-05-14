@@ -103,6 +103,83 @@ local function strip_xmlns(xml)
 	
 end
 
+local function compact_XML(xml_in)
+
+  local function nextchar(xml, index)
+	
+    local idx = index
+    local char
+    
+    repeat
+      char = string.sub(xml, idx, idx)
+      if (char ~= ' ') and (char ~= '\t') and (char ~= '\n') then
+	return char, idx
+      else
+	idx = idx + 1
+      end
+    until idx > #xml
+  end
+
+  local xml_out = ''
+  local element_index = 1
+  local char, lastchar
+  local doneflag
+
+  repeat
+    doneflag = false
+    lastchar = ''
+
+    char, element_index = nextchar(xml_in, element_index)
+    
+    if not char then; break; end
+    
+    if char == '<' then
+
+      -- Parse < > element
+      repeat
+	char = string.sub(xml_in, element_index, element_index)
+	if char ~= '\n' then
+	  if char == '\t' then; char = ' '; end
+	  
+	  if (char == ' ') and (lastchar == ' ') then
+	    char = ''
+	  end
+	  
+	  if char ~= '' then
+	    lastchar = char
+	  else
+	    lastchar = ' '
+	  end
+	  
+	  xml_out = xml_out .. char
+	  if char == '>' then
+	    doneflag = true
+	  end
+	end
+	element_index = element_index + 1
+      until doneflag or (element_index > #xml_in)
+	    
+    else
+      -- Parse data item element
+      repeat
+	char = string.sub(xml_in, element_index, element_index)
+	if (char ~= ' ') and (char ~= '\t') and (char ~= '\n') then
+	  if char == '<' then
+	    doneflag = true
+	    break
+	  end
+	  xml_out = xml_out .. char
+	end
+	element_index = element_index + 1
+      until doneflag or (element_index > #xml_in)
+    end
+	  
+  until element_index > #xml_in
+  
+  return xml_out					
+
+end
+
 
 local function disptable(table, tab, maxlevels, currlevel)
 
@@ -158,6 +235,7 @@ return {
 	  xml_to_table = xml_to_table,
 	  is_element = is_element,
 	  strip_xmlns = strip_xmlns,
+	  compact_XML = compact_XML,
           disptable = disptable,
 	  hextoint = hextoint,
 }
