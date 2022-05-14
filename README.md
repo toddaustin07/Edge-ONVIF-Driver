@@ -4,7 +4,7 @@ Supports motion detection and streaming from ONVIF-compliant IP cameras
 - SmartThings hub capable of running Edge platform
 - SmartThings account
 - SmartThings mobile app
-- ONVIF-compliant IP camera supporting Profile S (Streaming) 
+- ONVIF-compliant IP camera supporting **Profile S** (Streaming) 
 ## Installation Steps
 Use my shared projects Edge channel to complete these steps:
 1. Enroll hub in my shared test driver Edge channel:  https://bestow-regional.api.smartthings.com/invite/Q1jP7BqnNNlL
@@ -13,7 +13,7 @@ Use my shared projects Edge channel to complete these steps:
 ### Camera device discovery and SmartThings device creation
 Once the driver is installed to your hub, use the SmartThings mobile app to initiate an Add device -> Scan nearby devices.  Your ONVIF-compliant IP cameras will be discovered and SmartThings devices added to the 'No room assigned' room.
 
-Note:  If a camera cannot be discovered, then it probably doesn't support ONVIF.
+Note:  If a camera cannot be discovered, then it probably doesn't support ONVIF, it is on a different subnet from your SmartThings hub, or is behind a firewall/VPN.
 
 ## Usage
 
@@ -26,6 +26,9 @@ Due to limitations in the SmartThings Edge platform, video is not available dire
 
 ### Motion Detection
 The Edge driver subscribes to basic motion change events from the camera and these motion state changes can be used in creating Routines.  The Motion Events switch on the device Control screen must be in the ON position to receive events from the camera.
+
+### Cameras without static IP addresses
+Some cameras may occasionally change IP addresses if they are not configured on your network router to have static IP addresses.  If motion events are enabled for the SmartThings camera device OR if a Refresh is initiated, and the camera cannot be found at its former IP address, then the driver will automatically initiate a periodic re-discovery process until it finds the camera again and determines its new IP address.
 
 ## Device Settings
 
@@ -43,13 +46,13 @@ Use this setting when Auto motion revert is set to 'Auto-revert'.
 Value provided is the number of seconds to wait - after an active motion is received - to revert motion to inactive.
 
 ### Video Stream Selection
-Use this setting to control which stream - main or sub - to use to view your camera.  After changing this value you **must** Refresh the device for it to take effect.
+Use this setting to control which stream - main or sub - to use to view your camera.  After changing this value you **must** Refresh the device for it to take effect.  Note that 'main' is assumed to be the *first* video profile in the camera's response data, and 'sub' is assumed to be the *second* video profile in the camera's configuration data.
 
 ### Motion Rule Selection
 Most Profile S cameras support the *RuleEngine/CellMotionDetector* rule for triggering motion events, so this is the default rule used by the driver.  However if you have a Profile T camera, you can alternatively use the *VideoSource/MotionAlarm* rule to activate SmartThings motion.  After changing this value you **must** Refresh the device for it to take effect.
 
 ### Event Subscription
-For future use to select ONVIF subscription type to accommodate various camera capabilities
+For future use to select ONVIF subscription type.  Note that the current version of this driver supports the *WS-Basic Notifications* specification.  *Pull-Point Notifications* will be supported at a later date, which will address cases where cameras are behind a firewall or on another subnet.
 
 ### UserID and Password
 This is the access credentials required to access your camera, initially set up in the camera manufacturer's app.
@@ -68,6 +71,9 @@ This is the access credentials required to access your camera, initially set up 
 
 ## Device History
 All motion events, status changes, and device info table updates will be captured in history.
+
+## Routine Triggers
+The device's motion state (active/inactive) can be used in the IF condition of SmartThings automation routines.
 
 ## Current Limitations
 - Video
