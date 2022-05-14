@@ -71,13 +71,13 @@ All motion events, status changes, and device info table updates will be capture
 
 ## Current Limitations
 - Video
-  - Streaming is fairly limited to what the SmartThings mobile app currently allows.  At present, the only way to view video streams with this driver is to create a camera group and view the video streams through the group.  This by definition requires more than one camera to create a group.
+  - Streaming is fairly limited to what the SmartThings mobile app currently allows.  At present, the only way to view video streams with this driver is to create a camera group and view the video streams through the group.  This by definition requires more than one camera to create a group.  I have a virtual camera device driver also available on my test channel, which you can use to create a camera group if you have only one IP camera.
   - The video stream displayed via a camera group **defaults to the camera's Substream**, which is typically a lower resolution (e.g. 360H x 640W or 480H x 640W) and commonly referred to as a preview stream. This was a conscious decision since SmartThings is unable to display multiple video streams at higher resolution.  Note that the user can choose to instead use a the main stream for higher resolution via device Settings.
   - Andriod users will benefit from some viewing options that are not available on iOS
-  - It appears that video through camera groups cannot be viewed when the mobile app is connected via cellular, so it is available only when connected to the home network
+  - Video streaming is only working when you are connected to your home network
 - Motion
   - Motion events may not work if cameras are on a separate subnet or behind a firewall. Note that this will be addressed in a future driver update.
-  - Only generic motion alerts are supported
+  - Two motion rules are supported:  *RuleEngine/CellMotionDetector* and *VideoSource/MotionAlarm*
 
 ## Notes on Security
 
@@ -88,10 +88,8 @@ The official list of camera models that have passed ONVIF certification can be f
 
 Even if your camera is not listed there, check the manufacturer's documentation to see if they *claim* ONVIF compatibility.  It should be noted that although a manufacturer may claim ONVIF compliance, it may not be a complete, or fully-functional implementation if it is not on the official conformant product list noted above.  Notes on how this driver works with brand-specific cameras will be updated in this document as they are discovered.
 
-To date, this driver has been tested with Reolink and Hikvision cameras.
-
 #### Profiles
-ONVIF defines specific Profiles, which define the feature set the camera supports.  This Edge driver requires only the Streaming Profile (Profile S).
+ONVIF defines specific Profiles, which define the feature set the camera supports.  This Edge driver requires only the Streaming Profile (Profile S) for both streaming video and *CellMotionDetector* events, but it can also support the *MotionAlarm* events from Profile T cameras.
 
 ### Reolink
 Many Reolink cameras should work with this driver, but not all.
