@@ -129,6 +129,8 @@ Confirmed to work: R2 V4
 
 ### Axis
 Confirmed to work: 
+- M1045-LW, M1065-LW,  M3044-WV
+- M1004-W (video streaming only, no motion alerts)
 
 ### TP-Link TAPO
 There is a known problem with subscribing to motion events, however video streaming is functional
