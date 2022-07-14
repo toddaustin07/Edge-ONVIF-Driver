@@ -40,37 +40,23 @@ local common = require "common"
 local cap_status = capabilities["partyvoice23922.onvifstatus"]
 local cap_info = capabilities["partyvoice23922.onvifinfo"]
 local cap_refresh = capabilities["partyvoice23922.refresh"]
-local cap_motion = capabilities["partyvoice23922.motionevents"]
+local cap_motion = capabilities["partyvoice23922.motionevents2"]
 
 -- Module Variables
 
-local disco_sem
-
-onvifDriver = {}
-
+local devcreate_sem
 local resub_thread
 local resub_timer
 local newly_added = {}
 local discovered_num = 1
 
+local ONVIFDEVSERVPATH = '/onvif/device_service'
+
+-- Global Variables
+onvifDriver = {}
+
+
 math.randomseed(socket.gettime())
-
-
-local function disptable(table, tab, maxlevels, currlevel)
-
-	if not currlevel then; currlevel = 0; end
-  currlevel = currlevel + 1
-  for key, value in pairs(table) do
-    if type(key) ~= 'table' then
-      log.debug (tab .. '  ' .. key, value)
-    else
-      log.debug (tab .. '  ', key, value)
-    end
-    if (type(value) == 'table') and (currlevel < maxlevels) then
-      disptable(value, '  ' .. tab, maxlevels, currlevel)
-    end
-  end
-end
 
 
 local function build_html(list)
@@ -159,11 +145,11 @@ local function event_handler(device, msgs)
           value = msg.Message.Message.Data.SimpleItem._attr.Value
       
           if name == cam_func.motion_eventrule.item then
-            log.info (string.format('%s event received event for %s', topic, device.label))
-            log.info (string.format('\tMotion value = %s (%s)', value, type(value)))
+            log.info (string.format('Message for %s: %s', device.label, topic))
+            log.info (string.format('\tMotion value = "%s"', value))
             valid = true
             
-            if (value == 'true') or (value == '1') or (value == 1) then
+            if (value == 'true') or (value == '1') then
               if (socket.gettime() - device:get_field('LastMotion')) >= device.preferences.minmotioninterval then
                 device:emit_event(capabilities.motionSensor.motion('active'))
                 device:set_field('LastMotion', socket.gettime())
@@ -188,12 +174,10 @@ local function event_handler(device, msgs)
     end
         
     if valid == false then
-      log.warn(string.format('Message for %s ignored (topic=%s)', device.label, msg.Topic[1]))
+      log.warn(string.format('Received message for %s ignored (topic=%s)', device.label, msg.Topic[1]))
     end
   end
   ----
-  
-  log.debug ('Event handler invoked')
   
   local cam_func = device:get_field('onvif_func')
   
@@ -240,19 +224,48 @@ local function get_cam_config(device)
         
         if not scopes then; return; end
         
-        log.debug(string.format('Found scopes for %s:', device.label))
+        --log.debug(string.format('Found scopes for %s:', device.label))
         
         local foundflag = false
         
-        for _, scope in ipairs(scopes) do
-          log.debug ('\t' .. scope)
-          if not scope:match('^onvif') then
-            table.insert(infolist, scope)
+        for _, item in ipairs(scopes) do
+          --log.debug ('\t' .. item)
+          
+          if meta.discotype == 'manual' then
+            table.insert(meta.scopes, item)
             foundflag = true
+            
+            if item:find('/name/') then
+              meta.vendname = item:match('/name/(.+)$')
+              table.insert(infolist, 'Name: ' .. meta.vendname)
+            elseif item:find('/location/') then
+              meta.location = item:match('/location/(.+)$')
+              table.insert(infolist, 'Location: ' .. meta.location)
+            elseif item:find('/hardware/') then
+              meta.hardware = item:match('/hardware/(.+)$')
+              table.insert(infolist, 'Hardware: ' .. meta.hardware)
+            elseif item:find('/Profile/') then
+              local profile = item:match('/Profile/(.+)$')
+              table.insert(meta.profiles, profile)
+              table.insert(infolist, 'Profile: ' .. profile)
+            elseif not item:match('^onvif') then
+              table.insert(infolist, item)
+            end
+          
+          else  
+            if not item:match('^onvif') then
+              table.insert(infolist, item)
+              foundflag = true
+            end
           end
         end
             
-        if foundflag then
+        if foundflag and (meta.discotype == 'manual') then
+          meta.discotype = 'manual_inited'
+          device:set_field('onvif_disco', meta, {['persist'] = true })
+        end
+            
+        if foundflag or (meta.discotype == 'manual') then
           device:emit_component_event(device.profile.components.info, cap_info.info(build_html(infolist)))
           device:set_field('onvif_info', infolist)
         end
@@ -282,8 +295,16 @@ local function get_cam_config(device)
         local onvif_func = {}
         
         if capabilities['Events'] then
+        
+          --log.debug ('Events section of Capabilities response:')
+          --common.disptable(capabilities.Events, '  ', 5)
+          
           onvif_func.event_service_addr = capabilities['Events']['XAddr']
+          onvif_func.ws_subscription = capabilities['Events']['WSSubscriptionPolicySupport']
           onvif_func.PullPointSupport = capabilities['Events']['WSPullPointSupport']
+        else
+          log.warn ('Camera does not have an Events Capability')
+          onvif_func.motion_events = false
         end
         
         if capabilities['Media'] then
@@ -296,16 +317,51 @@ local function get_cam_config(device)
         
         device:set_field('onvif_func', onvif_func)
         
+        --[[
         -- GET VIDEO SOURCES -------------------------------------------
         
         local videosources = commands.GetVideoSources(device, onvif_func.media_service_addr)
         
         if not videosources then; return; end
         
-        onvif_func.video_source_token = videosources._attr.token
-        log.debug ('Video source token:', videosources._attr.token)
+        --common.disptable(videosources, '  ', 12)
         
-        device:set_field('onvif_func', onvif_func)
+        onvif_func.video_source_token = nil
+        
+        if common.is_element(videosources, {'_attr', 'token'}) then
+          onvif_func.video_source_token = videosources._attr.token
+        else
+          if is_array(videosources) then
+            log.debug ('Number of video sources:', #videosources)
+            
+            if common.is_element(videosources[1], {'_attr', 'token'}) then
+              onvif_func.video_source_token = videosources[1]._attr.token
+            end
+            
+            if #videosources > 1 then
+              if device.preferences.stream == 'substream' then
+                if #videosources > 2 then
+                  if common.is_element(videosources[#videosources], {'_attr', 'token'}) then
+                    onvif_func.video_source_token = videosources[#videosources]._attr.token
+                    log.debug (string.format('Video resolution selected: %sw x %sh', videosources[#videosources].Resolution.Width, videosources[#videosources].Resolution.Height))
+                  end
+                else
+                  if common.is_element(videosources[2], {'_attr', 'token'}) then
+                    onvif_func.video_source_token = videosources[2]._attr.token
+                  end
+                end
+              end
+            end
+          end
+        end
+        
+        if onvif_func.video_source_token then
+          log.debug ('Video source token:', onvif_func.video_source_token)
+          device:set_field('onvif_func', onvif_func)
+        else
+          log.error ('Video source cannot be determined')
+        end
+        --]]
         
         -- GET PROFILES -------------------------------------------------
         
@@ -313,20 +369,39 @@ local function get_cam_config(device)
         
         if not profiles then; return; end
         
-        local substream_token, profile_name, stream_idx
+        --common.disptable(profiles, '  ', 12)
+        
+        local substream_token, profile_name
+        local stream_idx = 1
         local res_width, res_height
         
-        if device.preferences.stream == 'mainstream' then
-          stream_idx = 1
-        else
-          stream_idx = 2
-        end
-        
         if is_array(profiles) then
+        
           if #profiles == 1 then
-            stream_idx = 1
             log.warn ('Only one video profile available')
-          end
+            
+          else
+            if device.preferences.stream ~= 'mainstream' then
+              if #profiles > 2 then
+
+                -- Scan table for low resolution profile
+                for i, profile in ipairs(profiles) do
+                  if common.is_element(profile, { 'VideoEncoderConfiguration', 'Resolution' }) then
+                    local width = profile.VideoEncoderConfiguration.Resolution.Width
+                    local height = profile.VideoEncoderConfiguration.Resolution.Height
+                    log.debug (string.format('\tProfile #%d resolution: %s x %s', i, width, height))
+                    if ((tonumber(width) < 1000) and (tonumber(height) < 1000)) then
+                      stream_idx = i
+                      break
+                    end
+                  end
+                end
+              else
+                stream_idx = 2
+              end
+            end
+          end  
+            
           profile_name = profiles[stream_idx].Name
           substream_token = profiles[stream_idx]._attr.token
           if common.is_element(profiles[stream_idx], { 'VideoEncoderConfiguration', 'Resolution' }) then
@@ -385,7 +460,7 @@ local function get_cam_config(device)
             local motionOK = false
             local eventrule
             
-            disptable(rules, '  ', 12)
+            --common.disptable(rules, '  ', 12)
           
             if (device.preferences.motionrule == 'cell') or (device.preferences.motionrule == nil) then
           
@@ -432,13 +507,6 @@ local function get_cam_config(device)
         log.warn ('Userid/Password not configured:', device.label)
       end
       
-    else
-      device:emit_component_event(device.profile.components.info, cap_status.status('Not responding'))
-      
-      if device:get_field('onvif_online') == false then
-        device:offline()
-        discover.schedule_rediscover(onvifDriver, device, 20, init_device)
-      end
     end
   
   else
@@ -480,7 +548,9 @@ function init_device(device)
 
   if get_cam_config(device) then
     
-    if device:get_latest_state("main", cap_motion.ID, cap_motion.switch.NAME) == 'On' then
+    local curstate = device:get_latest_state("main", cap_motion.ID, cap_motion.motionSwitch.NAME)
+    log.debug ('Current motion switch value: ', curstate)
+    if curstate == 'On' then
       
       start_events(device)
         
@@ -491,10 +561,14 @@ function init_device(device)
     
   else
     log.error ('Failed to initialize device', device.label)
+    device:emit_component_event(device.profile.components.info, cap_status.status('Not responding'))
     
     if device:get_field('onvif_online') == false then
       device:offline()
-      discover.schedule_rediscover(onvifDriver, device, 20, init_device)
+      local discotype = device:get_field('onvif_disco').discotype
+      if (discotype == nil) or (discotype == 'auto') then
+        discover.schedule_rediscover(onvifDriver, device, 20, init_device)
+      end
     end
   end
 
@@ -507,6 +581,8 @@ end
 local function handle_refresh(driver, device, command)
 
   log.info ('Refresh requested')
+
+  discover.cancel_rediscover(driver, device)      -- in case an outstanding rediscover timer
 
   init_device(device)
     
@@ -522,12 +598,12 @@ local function handle_switch(driver, device, command)
   if cam_func then
     if cam_func.motion_events == true then
     
-      if command.args.value == 'On' then
+      if command.command == 'switchOn' then
         if start_events(device) then
-          device:emit_event(cap_motion.switch('On'))
+          device:emit_event(cap_motion.motionSwitch('On'))
           return
         end
-      elseif command.args.value == 'Off' then
+      elseif command.command == 'switchOff' then
         commands.Unsubscribe(device, cam_func.event_service_addr)
         log.info('Unsubscribed to events for', device.label)
         events.shutdownserver(driver, device)
@@ -541,7 +617,7 @@ local function handle_switch(driver, device, command)
     log.warn(string.format('Cannot enable motion events - %s not yet initialized', device.label))
   end
   
-  device:emit_event(cap_motion.switch('Off'))
+  device:emit_event(cap_motion.motionSwitch('Off'))
   
 end
 
@@ -597,18 +673,35 @@ local function device_added (driver, device)
   local urn = device.device_network_id
 
   log.info(string.format('ADDED handler: <%s (%s)> successfully added; device_network_id = %s', device.id, device.label, device.device_network_id))
-  
-  -- get camera metadata that was squirreled away when device was created
+
+  -- get camera metadata that was squirreled away when device was discovered
   local ipcam = newly_added[urn]
   
+  if ipcam then
+    device:set_field('onvif_disco', ipcam, {['persist'] = true })
+    newly_added[urn] = nil                   -- we're done with it
+  else
+    -- device may be transferring in from manual camera device creator
+    if device.device_network_id:match('^MAN_') then
+      log.debug ('Processing manually-created device')
+      ipcam = {}
+      ipcam.uri = {}
+      ipcam.scopes = {}
+      ipcam.profiles = {}
+      ipcam.urn, ipcam.addr = device.device_network_id:match('MAN_(.+)_(.+)$')
+      ipcam.ip = ipcam.addr:match('([%d%.]+):')
+      ipcam.port = tonumber(ipcam.addr:match(':(%d+)'))
+      ipcam.uri.device_service = 'http://' .. ipcam.addr .. ONVIFDEVSERVPATH
+      ipcam.discotype = 'manual'
+      device:set_field('onvif_disco', ipcam, {['persist'] = true })
+    end
+  end
+    
   if ipcam ~= nil then
     
-    device:set_field('onvif_disco', ipcam, {['persist'] = true })
-    
-    newly_added[urn] = nil                                               -- we're done with it
-    
     device:emit_event(capabilities.motionSensor.motion('inactive'))
-    device:emit_event(cap_motion.switch('Off'))
+    device:emit_event(cap_motion.motionSwitch('Off'))
+    device:emit_component_event(device.profile.components.info, cap_info.info(" "))
     device:emit_component_event(device.profile.components.info, cap_status.status('Not configured'))
     
   else
@@ -617,7 +710,7 @@ local function device_added (driver, device)
 
   log.debug ('ADDED handler exiting for ' .. device.label)
   
-  disco_sem:release()         -- allow next device to be created
+  devcreate_sem:release()         -- allow next device to be created
 
 end
 
@@ -639,6 +732,7 @@ local function device_removed(driver, device)
   end
   
   events.shutdownserver(driver, device)
+  discover.cancel_rediscover(driver, device)
   
   local device_list = driver:get_devices()
   
@@ -715,7 +809,7 @@ end
 
 -- Perform WS discovery to find target device(s) on the LAN
 local function discovery_handler(driver, _, should_continue)
-  log.debug("Starting discovery")
+  log.debug ("Discovery handler invoked")
   
   local known_devices = {}
   local found_devices = {}
@@ -725,13 +819,17 @@ local function discovery_handler(driver, _, should_continue)
     known_devices[device.device_network_id] = true
   end
 
-  local waittime = 15
+  local waittime = 10
   local reset_option = true
+  local cycle = 0
+  local newcreates = 0
 
   -- We'll limit our discovery to repeat_count to minimize unnecessary LAN traffic
 
   while should_continue() do
-    log.debug('Making WS discovery request')
+  
+    cycle = cycle + 1
+    log.info (string.format('Starting Discovery cycle #%s', cycle))
     
     --****************************************************************************
     discover.discover(waittime,    
@@ -774,7 +872,7 @@ local function discovery_handler(driver, _, should_continue)
                       -- Device creation protected by a semaphore,
                       --   since rapid sequential creation calls causes problems with Edge right now.
                       --   Semaphore is released at the end of ADDED lifecycle.
-                      disco_sem:acquire(function()  
+                      devcreate_sem:acquire(function()
                         log.info(string.format('Creating discovered IP Camera found at %s', ip))
                         log.info("\tdevice_network_id = " .. urn)
                         assert (
@@ -782,6 +880,8 @@ local function discovery_handler(driver, _, should_continue)
                           "failed to create device record"
                         )
                       end)
+                      
+                      newcreates = newcreates + 1
 
                     else
                       log.debug("Discovered device was already known")
@@ -790,11 +890,11 @@ local function discovery_handler(driver, _, should_continue)
                   reset_option
     )
     --***************************************************************************
-    
+    cosock.socket.sleep(waittime + 1)
+    cosock.socket.sleep(newcreates)
     reset_option = false
-    
   end
-  log.info("Driver is exiting discovery")
+  log.info("Exiting discovery")
 end
 
 -----------------------------------------------------------------------
@@ -818,6 +918,8 @@ onvifDriver = Driver("onvifDriver", {
     },
     [cap_motion.ID] = {
       [cap_motion.commands.setSwitch.NAME] = handle_switch,
+      [cap_motion.commands.switchOn.NAME] = handle_switch,
+      [cap_motion.commands.switchOff.NAME] = handle_switch,
     },
     [capabilities.videoStream.ID] = {
       [capabilities.videoStream.commands.startStream.NAME] = handle_stream,
@@ -826,8 +928,8 @@ onvifDriver = Driver("onvifDriver", {
   }
 })
 
-log.debug("**** ONVIF Driver V1 Start ****")
+log.debug("**** ONVIF Driver V1.1 Start ****")
 
-disco_sem = Semaphore()
+devcreate_sem = Semaphore()
 
 onvifDriver:run()

@@ -177,7 +177,6 @@ end
 
 local function parse_authenticate(headers)
 
-  log.debug ('Searching Headers for authentication:')
   for key, value in pairs(headers) do
     if string.lower(key) == 'www-authenticate' then
       return(value)
@@ -212,10 +211,10 @@ local function create_authdata_table(authrecord)
   authdata.opaque = parms:match('opaque="([^"]+)"')
   authdata.domain = parms:match('domain="([^"]+)"')
   
-  log.debug ('Authorization record:')
-  for key, value in pairs(authdata) do
-    log.debug (string.format('\t%s: %s', key, value))
-  end
+  --log.debug ('Authorization record:')
+  --for key, value in pairs(authdata) do
+  --  log.debug (string.format('\t%s: %s', key, value))
+  --end
   
   return authdata
 
@@ -226,7 +225,7 @@ local function update_nonce(authinfo, headers)
   for key, value in pairs(headers) do
     if string.lower(key) == 'authentication-info' then
 
-      log.debug ('Response authentication-info:', value)
+      --log.debug ('Response authentication-info:', value)
       if authinfo.authdata then
         local nextnonce = value:match('nextnonce="([^"]+)"')
         if nextnonce then
@@ -241,22 +240,15 @@ local function update_nonce(authinfo, headers)
   
 end
 
-local function add_XML_header(xml, item)
-
-  local insert_point = xml:find('  </s:Header>', 1, 'plaintext')
-  return (xml:sub(1, insert_point - 1) .. item .. xml:sub(insert_point, #xml))
-
-end
-
 
 local function augment_header(request, url)
 
-  local to = '    <wsa:To s:mustUnderstand="1">' .. url .. '</wsa:To>'
+  local to = '    <wsa:To s:mustUnderstand="1">' .. url .. '</wsa:To>\n'
   
-  local msgid = '<wsa:MessageID>urn:uuid:' .. uuid() .. '</wsa:MessageID>\n'
+  local msgid = '    <wsa:MessageID>urn:uuid:' .. uuid() .. '</wsa:MessageID>\n'
   
-  request = add_XML_header(request, to)
-  request = add_XML_header(request, msgid)
+  request = common.add_XML_header(request, to)
+  request = common.add_XML_header(request, msgid)
   
   return request
 
@@ -264,10 +256,16 @@ end
 
 local function check_offline(device, code)
 
-  if string.lower(code):find('no route to host', 1, 'plaintext') then
-  
-    device:set_field('onvif_online', false)
-     
+  if code then
+    if type(code) == 'string' then
+      if string.lower(code):find('no route to host', 1, 'plaintext') or 
+         string.lower(code):find('connection refused', 1, 'plaintext') or
+         string.lower(code):find('timeout', 1, 'plaintext') then
+      
+        device:set_field('onvif_online', false)
+         
+      end
+    end
   end
 end
 
@@ -296,7 +294,7 @@ local function get_new_auth(device, reqname, serviceURI, request)
       if code == 400 then             -- could be WSS authorization is required
         if string.lower(fault_text):find('not authorized', 1, 'plaintext') 
             or string.lower(fault_text):find('authority failure', 1, 'plaintext') then      -- TP Link
-          auth_request = add_XML_header(request, auth.build_UsernameToken(device))
+          auth_request = common.add_XML_header(request, auth.build_UsernameToken(device))
           authinited = true
         else
           log.error ('HTTP Error: 400 Bad Request; unknown authentication method')
@@ -313,7 +311,7 @@ local function get_new_auth(device, reqname, serviceURI, request)
         
             -- Special case coming from Foscam R2 camera - treat as wss authentication type
             log.debug ('Assuming WS authentication')
-            auth_request = add_XML_header(request, auth.build_UsernameToken(device))
+            auth_request = common.add_XML_header(request, auth.build_UsernameToken(device))
             authinited = true
         
           else
@@ -328,15 +326,15 @@ local function get_new_auth(device, reqname, serviceURI, request)
           end
         else
           log.error ('HTTP 401 returned without WWW-Authenticate header; unknown authentication method')
-          return
+          return nil, nil, nil, code
         end
       else
         log.error (string.format('Unexpected HTTP Error %s from camera: %s', code, device.label))
-        return
+        return nil, nil, nil, code
       end
 
       if authinited then
-        return device:get_field('onvif_authinfo'), auth_header, auth_request
+        return device:get_field('onvif_authinfo'), auth_header, auth_request, code, response
       end
 
     end  
@@ -344,7 +342,7 @@ local function get_new_auth(device, reqname, serviceURI, request)
   else
     log.error (string.format('No response data from camera (HTTP code %s)', device.label, code))
     check_offline(device, code)
-    return
+    return nil, nil, nil, code
   end
 
 end
@@ -383,19 +381,19 @@ local function send_request(device, reqname, serviceURI, request)
 
   if authinfo == nil then
   
-    -- Need to build authentication 
+    -- Need to build initial authentication 
     authinfo, auth_header, auth_request, http_code, http_response = get_new_auth(device, reqname, serviceURI, request)
   
     if not authinfo then
       log.error ('Failed to determine authentication method')
-      return
+      return nil, http_code
     end
     
   else
   
     -- Authentication previously obtained
     if authinfo.type == 'wss' then
-      auth_request = add_XML_header(request, auth.build_UsernameToken(device))
+      auth_request = common.add_XML_header(request, auth.build_UsernameToken(device))
       auth_header = nil
     
     elseif authinfo.type == 'http' then
@@ -431,7 +429,7 @@ local function send_request(device, reqname, serviceURI, request)
         
           -- Special case coming from TP Link camera - needs to be wss authentication method
           log.debug ('Assuming WS authentication')
-          auth_request = add_XML_header(request, auth.build_UsernameToken(device))
+          auth_request = common.add_XML_header(request, auth.build_UsernameToken(device))
           auth_header = nil
           success, http_code, http_response, headers = _send_request(device, serviceURI, reqname, auth_request, auth_header)
           
@@ -446,7 +444,7 @@ local function send_request(device, reqname, serviceURI, request)
         end
       else
         log.error ('Unexpected condition: HTTP 401 returned without WWW-Authenticate header')
-        return
+        return nil, http_code
       end
       
     elseif (http_code == 400) and ((authinfo.type == 'wss') or (authinfo.type == 'none')) then
@@ -454,7 +452,7 @@ local function send_request(device, reqname, serviceURI, request)
       if fault_text then
         if string.lower(fault_text):find('not authorized', 1, 'plaintext')
             or string.lower(fault_text):find('authority failure', 1, 'plaintext') then      -- TP Link
-          auth_request = add_XML_header(request, auth.build_UsernameToken(device))
+          auth_request = common.add_XML_header(request, auth.build_UsernameToken(device))
           auth_header = nil
           success, http_code, http_response, headers = _send_request(device, serviceURI, reqname, auth_request, auth_header)
         else
@@ -471,7 +469,7 @@ local function send_request(device, reqname, serviceURI, request)
     local xml_head, xml_body, fault_text = parse_XMLresponse(http_response)
     
     if xml_body and not fault_text then
-      return common.strip_xmlns(xml_body)
+      return common.strip_xmlns(xml_body), http_code
     
     elseif not xml_body then
       log.error (string.format('No XML body returned for %s request to camera %s', reqname, device.label))
@@ -480,6 +478,7 @@ local function send_request(device, reqname, serviceURI, request)
     log.error (string.format('%s request failed with HTTP Error %s (camera %s)', reqname, http_code, device.label))
     log.debug (http_response)
     check_offline(device, http_code)
+    return nil, http_code
   end
 
 end
@@ -492,67 +491,58 @@ local function GetSystemDateAndTime(device, device_serviceURI)
 
   local request = [[
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Header>
+  </s:Header>
   <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
     <GetSystemDateAndTime xmlns="http://www.onvif.org/ver10/device/wsdl"/>
   </s:Body>
 </s:Envelope>
 ]]
 
-  local success, code, response = onvif_cmd(device_serviceURI, 'GetSystemDateAndTime', request)
+  local xml_body, code = send_request(device, 'GetSystemDateAndTime', device_serviceURI, request)
   
-  if response then
+  if xml_body then
   
-    xml_head, xml_body = parse_XMLresponse(response)
+    local cam_datetime = {}
+    local datetime = {}
+    local hub_datetime = os.date("!*t")
+    local hub_epoch = os.time()
     
-    if xml_body then
-    
-      xml_body = common.strip_xmlns(xml_body)
-    
-      local cam_datetime = {}
-      local datetime = {}
-      local hub_datetime = os.date("!*t")
-      local hub_epoch = os.time()
+    datetime.hub = string.format('%d/%d/%d %d:%02d:%02d', hub_datetime.month, hub_datetime.day, hub_datetime.year, hub_datetime.hour, hub_datetime.min, hub_datetime.sec)
+  
+    if common.is_element(xml_body, {'GetSystemDateAndTimeResponse', 'SystemDateAndTime', 'UTCDateTime'}) then
+      local cam_UTC_datetime = xml_body['GetSystemDateAndTimeResponse']['SystemDateAndTime']['UTCDateTime']
+      cam_datetime.hour = tonumber(cam_UTC_datetime['Time']['Hour'])
+      cam_datetime.min = tonumber(cam_UTC_datetime['Time']['Minute'])
+      cam_datetime.sec = tonumber(cam_UTC_datetime['Time']['Second'])
+      cam_datetime.month = tonumber(cam_UTC_datetime['Date']['Month'])
+      cam_datetime.day = tonumber(cam_UTC_datetime['Date']['Day'])
+      cam_datetime.year = tonumber(cam_UTC_datetime['Date']['Year'])
       
-      datetime.hub = string.format('%d/%d/%d %d:%02d:%02d', hub_datetime.month, hub_datetime.day, hub_datetime.year, hub_datetime.hour, hub_datetime.min, hub_datetime.sec)
-    
-      if common.is_element(xml_body, {'GetSystemDateAndTimeResponse', 'SystemDateAndTime', 'UTCDateTime'}) then
-        local cam_UTC_datetime = xml_body['GetSystemDateAndTimeResponse']['SystemDateAndTime']['UTCDateTime']
-        cam_datetime.hour = tonumber(cam_UTC_datetime['Time']['Hour'])
-        cam_datetime.min = tonumber(cam_UTC_datetime['Time']['Minute'])
-        cam_datetime.sec = tonumber(cam_UTC_datetime['Time']['Second'])
-        cam_datetime.month = tonumber(cam_UTC_datetime['Date']['Month'])
-        cam_datetime.day = tonumber(cam_UTC_datetime['Date']['Day'])
-        cam_datetime.year = tonumber(cam_UTC_datetime['Date']['Year'])
-        
-        local cam_epoch = os.time(cam_datetime)
-        
-        datetime.cam = string.format('%d/%d/%d %d:%02d:%02d', cam_datetime.month, cam_datetime.day, cam_datetime.year, cam_datetime.hour, cam_datetime.min, cam_datetime.sec)
-        
-        log.info (string.format('Hub UTC datetime: %s', datetime.hub))
-        log.info (string.format('IP cam UTC datetime: %s', datetime.cam))
-        
-        if math.abs(hub_epoch - cam_epoch) > 300 then
-          log.warn (string.format('Date/Time not synchronized with %s (%s)', device_serviceURI, device.label))
-        end
-           
-        return datetime
-        
-      else
-        if common.is_element(xml_body, {'GetSystemDateAndTimeResponse', 'SystemDateAndTime', 'DateTimeType'}) then
-          if xml_body.GetSystemDateAndTimeResponse.SystemDateAndTime.DateTimeType == 'NTP' then
-            datetime.cam = '(NTP)'
-            return datetime
-          end
-        else
-          log.error ('Missing date/time response in XML response')
-          common.disptable(xml_body, '  ', 10)
-        end
+      local cam_epoch = os.time(cam_datetime)
+      
+      datetime.cam = string.format('%d/%d/%d %d:%02d:%02d', cam_datetime.month, cam_datetime.day, cam_datetime.year, cam_datetime.hour, cam_datetime.min, cam_datetime.sec)
+      
+      log.info (string.format('Hub UTC datetime: %s', datetime.hub))
+      log.info (string.format('IP cam UTC datetime: %s', datetime.cam))
+      
+      if math.abs(hub_epoch - cam_epoch) > 300 then
+        log.warn (string.format('Date/Time not synchronized with %s (%s)', device_serviceURI, device.label))
       end
+         
+      return datetime
+      
     else
-      log.error (string.format('Unexpected date/time request response; HTTP code=%s, data=%s', code, response))
+      if common.is_element(xml_body, {'GetSystemDateAndTimeResponse', 'SystemDateAndTime', 'DateTimeType'}) then
+        if xml_body.GetSystemDateAndTimeResponse.SystemDateAndTime.DateTimeType == 'NTP' then
+          datetime.cam = '(NTP)'
+          return datetime
+        end
+      else
+        log.error ('Missing date/time response in XML response')
+        common.disptable(xml_body, '  ', 10)
+      end
     end
-  else
-    log.error ('Empty response from date/time request; HTTP code=', code)
   end
   
   log.error(string.format('Failed to get date/time from %s (%s)', device_serviceURI, device.label))
@@ -887,8 +877,8 @@ local function Subscribe(device, event_serviceURI, listenURI)
   
   request = augment_header(request, event_serviceURI)
   
-  log.debug ('Subscribe request:')
-  log.debug (request)
+  --log.debug ('Subscribe request:')
+  --log.debug (request)
   
   local xml_body = send_request(device, 'Subscribe', event_serviceURI, request)
     
@@ -902,6 +892,25 @@ local function Subscribe(device, event_serviceURI, listenURI)
   end
   
   log.error(string.format('Failed to subscribe to %s', event_serviceURI))
+
+end
+
+
+local function gen_subid_header(device, request)
+
+  local cam_func = device:get_field('onvif_func')
+  if cam_func.subscriptionid then
+    local subscription_header = '    <SubscriptionId wsa:IsReferenceParameter="true"'
+    if cam_func.subscriptionid.attr then
+      subscription_header = subscription_header .. ' xmlns=' .. cam_func.subscriptionid.attr:match('=(.+)$') .. ' xmlns:' .. cam_func.subscriptionid.attr
+    end
+    subscription_header = subscription_header .. '>' .. cam_func.subscriptionid.id .. '</SubscriptionId>\n'
+    request = common.add_XML_header(request, subscription_header)
+    
+    --log.debug ('Subscription header:', subscription_header)
+  end
+  
+  return request
 
 end
 
@@ -925,8 +934,11 @@ local function RenewSubscription(device, event_source_addr, termtime)
 
   local request = request_part1 .. termtime .. request_part2
 
+  -- Add SubscriptionId XML header if needed (e.g. Axis cameras)
+  request = gen_subid_header(device, request)
+  
   request = augment_header(request, event_source_addr)
-
+  
   local xml_body = send_request(device, 'RenewSubscription', event_source_addr, request)
     
   if xml_body then
@@ -962,6 +974,10 @@ local function Unsubscribe(device)
   local cam_func = device:get_field('onvif_func')
 
   if cam_func.event_source_addr then
+  
+    -- Add SubscriptionId XML header if needed (e.g. Axis cameras)
+    request = gen_subid_header(device, request)
+  
     request = augment_header(request, cam_func.event_source_addr)
   
     local xml_body = send_request(device, 'Unsubscribe', cam_func.event_source_addr, request)

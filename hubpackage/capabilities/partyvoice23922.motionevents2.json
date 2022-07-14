@@ -1,0 +1,64 @@
+{
+    "id": "partyvoice23922.motionevents2",
+    "version": 1,
+    "status": "proposed",
+    "name": "motionevents2",
+    "ephemeral": false,
+    "attributes": {
+        "motionSwitch": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "enum": [
+                            "On",
+                            "Off"
+                        ]
+                    }
+                },
+                "additionalProperties": false,
+                "required": [
+                    "value"
+                ]
+            },
+            "setter": "setSwitch",
+            "enumCommands": [
+                {
+                    "command": "switchOn",
+                    "value": "On"
+                },
+                {
+                    "command": "switchOff",
+                    "value": "Off"
+                }
+            ]
+        }
+    },
+    "commands": {
+        "switchOff": {
+            "name": "switchOff",
+            "arguments": []
+        },
+        "switchOn": {
+            "name": "switchOn",
+            "arguments": []
+        },
+        "setSwitch": {
+            "name": "setSwitch",
+            "arguments": [
+                {
+                    "name": "value",
+                    "optional": false,
+                    "schema": {
+                        "type": "string",
+                        "enum": [
+                            "On",
+                            "Off"
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+}

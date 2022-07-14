@@ -26,6 +26,9 @@ local Thread = require "st.thread"
 local log = require "log"
 
 local common = require "common"
+local uuid = require "uuid"
+local classify = require "classify"
+local Semaphore = require "semaphore"
 
 local multicast_ip = "239.255.255.250"
 local multicast_port = 3702
@@ -37,28 +40,38 @@ local unfoundlist = {}
 local rediscovery_thread
 local rediscover_timer
 
-local APP_MAX_DELAY = 500
 
 -- multicast WSdiscovery query
-local discover0 = [[
+local discover_1 = [[<?xml version="1.0" encoding="UTF-8"?>
 <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing">
   <s:Header>
     <a:Action s:mustUnderstand="1">
       http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe
     </a:Action>
-    <a:MessageID>uuid:bd26a53c-c043-4e00-9d2e-d8469c7808ee</a:MessageID>
     <a:ReplyTo><a:Address>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</a:Address></a:ReplyTo>
     <a:To s:mustUnderstand="1">urn:schemas-xmlsoap-org:ws:2005:04:discovery</a:To>
   </s:Header>
   <s:Body>
     <Probe xmlns="http://schemas.xmlsoap.org/ws/2005/04/discovery">
-      <d:Types xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dp0="http://www.onvif.org/ver10/network/wsdl">
-        dp0:NetworkVideoTransmitter
-      </d:Types>
+      <d:Types xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dp0="http://www.onvif.org/ver10/network/wsdl">]]
+      
+local discover_2 = [[</d:Types>
     </Probe>
   </s:Body>
 </s:Envelope>
 ]]
+
+
+local function build_probe(probetype)
+
+  local _probe1 = discover_1 .. probetype .. discover_2
+  local msgid = '<a:MessageID>uuid:' .. uuid() .. '</a:MessageID>\n'
+  local _probe2 = common.add_XML_header(_probe1, msgid)
+  local finalprobe = common.compact_XML(_probe2)
+
+  return finalprobe
+
+end
 
 
 local function parse(data)
@@ -76,7 +89,24 @@ local function parse(data)
       if common.is_element(parsed_xml, {'Envelope', 'Body', 'ProbeMatches'}) then
       
 	common.disptable(parsed_xml['Envelope']['Body']['ProbeMatches'], '  ', 10)
-      
+	
+	if common.is_element(parsed_xml, {'Envelope', 'Body', 'ProbeMatches', 'ProbeMatch', 'Types'}) then
+	
+	  local types = parsed_xml['Envelope']['Body']['ProbeMatches']['ProbeMatch']['Types']
+	  local found_matchtype = false
+	  for matchtype in types:gmatch('[^ ]+') do
+	    if string.find(matchtype, 'NetworkVideoTransmitter', nil, true) then
+	      found_matchtype = true
+	      break
+	    end
+	  end
+	    
+	  if found_matchtype == false then
+	    log.debug ('\tResponse not from NetworkVideoTransmitter; ignored')
+	    return
+	  end
+	end
+	
         metadata.uri = {}
         
 	local service_addrs = parsed_xml['Envelope']['Body']['ProbeMatches']['ProbeMatch']['XAddrs']
@@ -116,6 +146,7 @@ local function parse(data)
 	
 	  local scopestring = parsed_xml['Envelope']['Body']['ProbeMatches']['ProbeMatch']['Scopes']
 	  for item in scopestring:gmatch('[^ ]+') do
+	  
 	    table.insert(metadata.scopes, item)
 	    if item:find('/name/') then
 	      metadata.vendname = item:match('/name/(.+)$')
@@ -126,6 +157,7 @@ local function parse(data)
 	    elseif item:find('/Profile/') then
 	      table.insert(metadata.profiles, item:match('/Profile/(.+)$'))
 	    end
+	    
 	  end
 	else
 	  log.warn ('No Scopes found in discovery response')
@@ -165,57 +197,62 @@ local function discover (waitsecs, callback, reset)
   local s = assert(socket.udp(), "create discovery socket")
   assert(s:setsockname(listen_ip, listen_port), "discovery socket setsockname")
 
-  local timeouttime = socket.gettime() + waitsecs + .5 -- + 1/2 for network delay
+  
 
-  local sendmsg = common.compact_XML(discover0)
-
-  s:sendto(sendmsg, multicast_ip, multicast_port)
-
-  while true do
-    local time_remaining = math.max(0, timeouttime-socket.gettime())
+  s:sendto(build_probe('dp0:NetworkVideoTransmitter'), multicast_ip, multicast_port)
+  cosock.socket.sleep(.1)
+  s:sendto(build_probe('dp0:Device'), multicast_ip, multicast_port)
+  
+  local timeouttime = socket.gettime() + waitsecs
+  
+  cosock.spawn(function()
     
-    s:settimeout(time_remaining)
-    
-    local data, rip, port = s:receivefrom()
+    while true do
+      local time_remaining = math.max(0, timeouttime-socket.gettime())
+      
+      s:settimeout(time_remaining)
+      
+      local data, rip, port = s:receivefrom()
 
-    if data then
-    
-      log.debug (string.format('Discovery response from: %s', rip))
+      if data then
       
-      local cam_meta = parse(data)
-      
-      if cam_meta then
-      
-	local streamprofile
-	for _, profile in ipairs(cam_meta.profiles) do
-	  if profile == 'Streaming' then
-	    streamprofile = profile
+	log.debug (string.format('Discovery response from: %s', rip))
+	
+	local cam_meta = parse(data)
+	
+	if cam_meta then
+	
+	  local streamprofile
+	  for _, profile in ipairs(cam_meta.profiles) do
+	    if profile == 'Streaming' then
+	      streamprofile = profile
+	    end
 	  end
-	end
-	
-	if not streamprofile then
-	  log.warn ('No Streaming profile identified by discovered device')
-        end
-	
-	cam_meta.ip = rip
-	cam_meta.port = port
-	cam_meta.addr = rip .. ':' .. tostring(port)
+	  
+	  if not streamprofile then
+	    log.warn ('No Streaming profile identified by discovered device')
+	  end
+	  
+	  cam_meta.ip = rip
+	  cam_meta.port = port
+	  cam_meta.addr = rip .. ':' .. tostring(port)
+	  cam_meta.discotype = 'auto'
 
-	callback(cam_meta)
-          
+	  callback(cam_meta)
+	    
+	end
+
+      elseif rip == "timeout" then
+	  break
+
+      else
+	log.error ('ERROR:', rip)
       end
 
-    elseif rip == "timeout" then
-        break
-
-    else
-      log.error ('ERROR:', rip)
     end
 
-  end
-
-  s:close()
-    
+    s:close()
+  end, 'discovery responses task')
 end
 
 
@@ -259,7 +296,7 @@ local function proc_rediscover()
 	    )
 	    
      -- give discovery some time to finish
-    socket.sleep(10)
+    cosock.socket.sleep(10)
     -- Reschedule this routine again if still unfound devices
     if next(unfoundlist) ~= nil then
       rediscover_timer = rediscovery_thread:call_with_delay(50, proc_rediscover, 're-discover routine')
@@ -274,7 +311,7 @@ local function schedule_rediscover(driver, device, delay, callback)
   
   if next(unfoundlist) == nil then
     unfoundlist[device.device_network_id] = { ['device'] = device, ['callback'] = callback }
-    log.warn ('\tScheduling re-discover routine for later')
+    log.warn (string.format('\tScheduling re-discover routine in %d seconds', delay))
     if not rediscovery_thread then
       rediscovery_thread = Thread.Thread(driver, 'rediscover thread')
     end
@@ -286,7 +323,28 @@ local function schedule_rediscover(driver, device, delay, callback)
 end
 
 
+local function cancel_rediscover(driver, device)
+
+  if next(unfoundlist) ~= nil then
+  
+    for network_id, _ in pairs(unfoundlist) do
+    
+      if network_id == device.device_network_id then
+	unfoundlist[network_id] = nil
+	if next(unfoundlist) == nil then
+	  if rediscover_timer then
+	    driver:cancel_timer(rediscover_timer)
+	  end
+	end
+	break
+      end
+    end
+  end
+end
+
+
 return {
   discover = discover,
   schedule_rediscover = schedule_rediscover,
+  cancel_rediscover = cancel_rediscover,
 }

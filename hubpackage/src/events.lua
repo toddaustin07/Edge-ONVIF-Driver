@@ -127,7 +127,7 @@ local function eventaccept_handler(_, eventsock)
 
   local client, accept_err = eventsock:accept()
   
-  log.debug ('Client connection accepted')
+  --log.debug ('Client connection accepted')
   
 	if accept_err ~= nil then
 		log.error ("Connection accept error: " .. accept_err)
@@ -165,7 +165,7 @@ local function eventaccept_handler(_, eventsock)
 					local parsed_xml = common.xml_to_table(string.sub(data, xmldata_index, #data))
 
 					if parsed_xml then
-						log.debug('Received event message')
+						--log.debug('Received event message')
 						
 						parsed_xml = common.strip_xmlns(parsed_xml)
 
@@ -254,7 +254,7 @@ local function proc_renew_time(eventserver, response)
 		renewtime.duration = eventserver.epoch_termination_time - os.time(c)
 		
 		renewtime.interval = {}
-		renewtime.interval.totsecs = renewtime.duration - math.random(10, 15)
+		renewtime.interval.totsecs = renewtime.duration - math.random(45, 60)
 		renewtime.interval.min = math.modf(renewtime.interval.totsecs/60)
 		renewtime.interval.sec = math.fmod(renewtime.interval.totsecs, 60)
 		
@@ -314,7 +314,10 @@ local function renew_subscribe(eventserver)
 	else
 		log.error ('Subscription renewal failed for', device.label)
 		if device:get_field('onvif_online') == false then
-			discover.schedule_rediscover(onvifDriver, device, 20, init_device)
+			local discotype = device:get_field('onvif_disco').discotype
+			if (discotype == nil) or (discotype == 'auto') then
+				discover.schedule_rediscover(onvifDriver, device, 20, init_device)
+			end
 		end
 	end
 
@@ -338,6 +341,25 @@ local function _do_subscribe(eventserver)
 		log.debug('Subscription response:')
 		common.disptable(response, ' ', 10)
 		
+		-- Check for possible SubscriptionId reference parameter (e.g. Axis cameras)
+		
+		if common.is_element(response, {'SubscriptionReference', 'ReferenceParameters'}) then
+			if response.SubscriptionReference.ReferenceParameters.SubscriptionId then
+				local SubscriptionId = response.SubscriptionReference.ReferenceParameters.SubscriptionId
+				cam_func.subscriptionid = {}
+				cam_func.subscriptionid.id = SubscriptionId[1]
+				if SubscriptionId._attr then
+					for key, value in pairs(SubscriptionId._attr) do
+						cam_func.subscriptionid.attr = key .. '="' .. value .. '"'			-- assumes there is only one _attr element
+					end
+				end
+				device:set_field('onvif_func', cam_func)
+				log.debug (string.format('Found Subscription ID [%s], attr: %s', cam_func.subscriptionid.id, cam_func.subscriptionid.attr))
+			else
+				log.warn ('Unexpected reference parameter')
+			end
+		end
+		
 		local renew_time = proc_renew_time(eventserver, response)
 		
 		if renew_time then
@@ -348,7 +370,7 @@ local function _do_subscribe(eventserver)
 			
 			log.debug (string.format('Scheduling subscription renewal to run in %02d:%02d', renew_time.interval.min, renew_time.interval.sec))
 			
-			-- Reolink camera have bugs in their renew-subscription code, so schedule another regular subscribe
+			-- Some Reolink camera have bugs in their renew-subscription code, so schedule another regular subscribe
 			local resubscribe_function
 			if cam_meta.vendname == REOLINK_ID then
 				resubscribe_function = _do_subscribe
@@ -365,7 +387,9 @@ local function _do_subscribe(eventserver)
 		end
 	else
 		if device:get_field('onvif_online') == false then
-			discover.schedule_rediscover(onvifDriver, device, 20, init_device)
+			if (cam_meta.discotype == nil) or (cam_meta.discotype == 'auto') then
+				discover.schedule_rediscover(onvifDriver, device, 20, init_device)
+			end
 		end
 	end
 end
@@ -418,7 +442,6 @@ local function subscribe(driver, device, eventname, callback)
 		local subscribe_response = _do_subscribe(eventserver)
 		
 		if not subscribe_response then
-			--eventserver.eventing_thread:unregister_socket(eventserver.sock)
 			device.thread:unregister_socket(eventserver.sock)
 			eventserver.sock:close()
 			eventserver.eventing_thread:close()

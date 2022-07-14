@@ -116,7 +116,11 @@ local function build_UsernameToken(device)
   authinfo.type = 'wss'
   device:set_field('onvif_authinfo', authinfo)
   
-  return SecurityHeader_p1 .. UsernameToken .. SecurityHeader_p2
+  local security_header = SecurityHeader_p1 .. UsernameToken .. SecurityHeader_p2
+  --log.debug ('wss authorization created:')
+  --log.debug (security_header)
+  
+  return security_header
 
 end
 
@@ -204,7 +208,7 @@ local function build_authheader(device, method, fullurl, authdata)
                         clientnonce ..
                         nc 
     
-    log.debug ('Constructed auth header:', authheader)
+    --log.debug ('Constructed auth header:', authheader)
     
     authinfo.type = 'http'
     authinfo.authdata = authdata

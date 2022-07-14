@@ -4,7 +4,7 @@ components:
     capabilities:
       - id: motionSensor
         version: 1
-      - id: partyvoice23922.motionevents
+      - id: partyvoice23922.motionevents2
         version: 1
       - id: videoStream
         version: 1

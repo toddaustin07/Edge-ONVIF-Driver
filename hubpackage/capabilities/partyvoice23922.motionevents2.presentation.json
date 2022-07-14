@@ -1,0 +1,44 @@
+{
+    "dashboard": {
+        "states": [],
+        "actions": []
+    },
+    "detailView": [
+        {
+            "label": "Motion Events",
+            "displayType": "switch",
+            "switch": {
+                "command": {
+                    "on": "switchOn",
+                    "off": "switchOff"
+                },
+                "state": {
+                    "value": "motionSwitch.value",
+                    "valueType": "string",
+                    "on": "On",
+                    "off": "Off",
+                    "label": "{{motionSwitch.value}}",
+                    "alternatives": [
+                        {
+                            "key": "On",
+                            "value": "On",
+                            "type": "active"
+                        },
+                        {
+                            "key": "Off",
+                            "value": "Off",
+                            "type": "inactive"
+                        }
+                    ]
+                }
+            },
+            "state": null
+        }
+    ],
+    "automation": {
+        "conditions": [],
+        "actions": []
+    },
+    "id": "partyvoice23922.motionevents2",
+    "version": 1
+}

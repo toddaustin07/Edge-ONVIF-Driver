@@ -27,7 +27,8 @@ local log = require "log"
 
 local function xml_to_table(data)
 
-  if string.find(data,'<?xml version=\"1.0\"') then
+  if string.find(data,'<?xml version="1.0"', 1, true) or
+     string.find(data,"<?xml version='1.0'", 1, true) then
 	
     local handler = xml_handler:new()
     local xml_parser = xml2lua.parser(handler)
@@ -231,6 +232,15 @@ local function hextoint(hexstring)
 end
 
 
+local function add_XML_header(xml, item)
+
+  local insert_point = xml:find('  </s:Header>', 1, 'plaintext')
+  return (xml:sub(1, insert_point - 1) .. item .. xml:sub(insert_point, #xml))
+
+end
+
+
+
 return {
 	  xml_to_table = xml_to_table,
 	  is_element = is_element,
@@ -238,4 +248,5 @@ return {
 	  compact_XML = compact_XML,
           disptable = disptable,
 	  hextoint = hextoint,
+	  add_XML_header = add_XML_header,
 }

@@ -25,6 +25,8 @@ local md5 = {
     CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
     TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
     SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+    05/22/22 Todd A. Austin: modified to use Lua 5.3+ bitwise operators
   ]]
 }
 
@@ -32,169 +34,27 @@ local md5 = {
 
 local char, byte, format, rep, sub =
   string.char, string.byte, string.format, string.rep, string.sub
-local bit_or, bit_and, bit_not, bit_xor, bit_rshift, bit_lshift
 
-local ok, bit = pcall(require, 'bit')
-local ok_ffi, ffi = pcall(require, 'ffi')
-if ok then
-  bit_or, bit_and, bit_not, bit_xor, bit_rshift, bit_lshift = bit.bor, bit.band, bit.bnot, bit.bxor, bit.rshift, bit.lshift
-else
-  ok, bit = pcall(require, 'bit32')
+local function _bit_or(a, b) return a | b end
+local function _bit_and(a, b) return a & b end
+local function bit_not(a) return ~a end
+local function _bit_xor(a, b) return a ~ b end
+local function _bit_rshift(a, b) return a >> b end
+local function _bit_lshift(a, b) return a << b end
 
-  if ok then
 
-    bit_not = bit.bnot
-
-    local tobit = function(n)
-      return n <= 0x7fffffff and n or -(bit_not(n) + 1)
-    end
-
-    local normalize = function(f)
-      return function(a,b) return tobit(f(tobit(a), tobit(b))) end
-    end
-
-    bit_or, bit_and, bit_xor = normalize(bit.bor), normalize(bit.band), normalize(bit.bxor)
-    bit_rshift, bit_lshift = normalize(bit.rshift), normalize(bit.lshift)
-
-  else
-
-    local function tbl2number(tbl)
-      local result = 0
-      local power = 1
-      for i = 1, #tbl do
-        result = result + tbl[i] * power
-        power = power * 2
-      end
-      return result
-    end
-
-    local function expand(t1, t2)
-      local big, small = t1, t2
-      if(#big < #small) then
-        big, small = small, big
-      end
-      -- expand small
-      for i = #small + 1, #big do
-        small[i] = 0
-      end
-    end
-
-    local to_bits -- needs to be declared before bit_not
-
-    bit_not = function(n)
-      local tbl = to_bits(n)
-      local size = math.max(#tbl, 32)
-      for i = 1, size do
-        if(tbl[i] == 1) then
-          tbl[i] = 0
-        else
-          tbl[i] = 1
-        end
-      end
-      return tbl2number(tbl)
-    end
-
-    -- defined as local above
-    to_bits = function (n)
-      if(n < 0) then
-        -- negative
-        return to_bits(bit_not(math.abs(n)) + 1)
-      end
-      -- to bits table
-      local tbl = {}
-      local cnt = 1
-      local last
-      while n > 0 do
-        last      = n % 2
-        tbl[cnt]  = last
-        n         = (n-last)/2
-        cnt       = cnt + 1
-      end
-
-      return tbl
-    end
-
-    bit_or = function(m, n)
-      local tbl_m = to_bits(m)
-      local tbl_n = to_bits(n)
-      expand(tbl_m, tbl_n)
-
-      local tbl = {}
-      for i = 1, #tbl_m do
-        if(tbl_m[i]== 0 and tbl_n[i] == 0) then
-          tbl[i] = 0
-        else
-          tbl[i] = 1
-        end
-      end
-
-      return tbl2number(tbl)
-    end
-
-    bit_and = function(m, n)
-      local tbl_m = to_bits(m)
-      local tbl_n = to_bits(n)
-      expand(tbl_m, tbl_n)
-
-      local tbl = {}
-      for i = 1, #tbl_m do
-        if(tbl_m[i]== 0 or tbl_n[i] == 0) then
-          tbl[i] = 0
-        else
-          tbl[i] = 1
-        end
-      end
-
-      return tbl2number(tbl)
-    end
-
-    bit_xor = function(m, n)
-      local tbl_m = to_bits(m)
-      local tbl_n = to_bits(n)
-      expand(tbl_m, tbl_n)
-
-      local tbl = {}
-      for i = 1, #tbl_m do
-        if(tbl_m[i] ~= tbl_n[i]) then
-          tbl[i] = 1
-        else
-          tbl[i] = 0
-        end
-      end
-
-      return tbl2number(tbl)
-    end
-
-    bit_rshift = function(n, bits)
-      local high_bit = 0
-      if(n < 0) then
-        -- negative
-        n = bit_not(math.abs(n)) + 1
-        high_bit = 0x80000000
-      end
-
-      local floor = math.floor
-
-      for i=1, bits do
-        n = n/2
-        n = bit_or(floor(n), high_bit)
-      end
-      return floor(n)
-    end
-
-    bit_lshift = function(n, bits)
-      if(n < 0) then
-        -- negative
-        n = bit_not(math.abs(n)) + 1
-      end
-
-      for i=1, bits do
-        n = n*2
-      end
-      return bit_and(n, 0xFFFFFFFF)
-    end
-  end
+local tobit = function(n)
+  return n <= 0x7fffffff and n or -(bit_not(n) + 1)
 end
+
+local normalize = function(f)
+  return function(a,b) return tobit(f(tobit(a), tobit(b))) end
+end
+
+bit_or, bit_and, bit_xor = normalize(_bit_or), normalize(_bit_and), normalize(_bit_xor)
+bit_rshift, bit_lshift = normalize(_bit_rshift), normalize(_bit_lshift)
+
+  
 
 -- convert little-endian 32-bit int to a 4-char string
 local lei2str
@@ -292,16 +152,23 @@ local h=function (x,y,z) return bit_xor(x,bit_xor(y,z)) end
 local i=function (x,y,z) return bit_xor(y,bit_or(x,-z-1)) end
 local z=function (ff,a,b,c,d,x,s,ac)
   a=bit_and(a+ff(b,c,d)+x+ac,0xFFFFFFFF)
+  --print (string.format('orig z_func a calc: %d', a))
   -- be *very* careful that left shift does not cause rounding!
-  return bit_or(bit_lshift(bit_and(a,bit_rshift(0xFFFFFFFF,s)),s),bit_rshift(a,32-s))+b
+  --print ('orig z func input=', a,b,c,d,x,s,ac)
+  --print ('orig z func return=', bit_or (bit_lshift (bit_and (a, bit_rshift(0xFFFFFFFF,s) ) ,s) ,bit_rshift(a,32-s))+b)
+  --print ('orig bit_lshift (bit_and (a, bit_rshift(0xFFFFFFFF,s) ) ,s)', bit_lshift (bit_and (a, bit_rshift(0xFFFFFFFF,s) ) ,s))
+  return bit_or (bit_lshift (bit_and (a, bit_rshift(0xFFFFFFFF,s) ) ,s) ,bit_rshift(a,32-s))+b
 end
 
 local function transform(A,B,C,D,X)
   local a,b,c,d=A,B,C,D
   local t=CONSTS
+  --print ('orig transform input=', a, b, c, d)
 
   a=z(f,a,b,c,d,X[ 0], 7,t[ 1])
+  --print ('orig transform a=', a)
   d=z(f,d,a,b,c,X[ 1],12,t[ 2])
+  --print ('orig transform d=', d)
   c=z(f,c,d,a,b,X[ 2],17,t[ 3])
   b=z(f,b,c,d,a,X[ 3],22,t[ 4])
   a=z(f,a,b,c,d,X[ 4], 7,t[ 5])
@@ -381,7 +248,9 @@ local function md5_update(self, s)
     local X = cut_le_str(sub(s,ii,ii+63))
     assert(#X == 16)
     X[0] = table.remove(X,1) -- zero based!
+    --print (string.format('origa: %04x %04x %04x %04x', self.a, self.b, self.c, self.d))
     self.a,self.b,self.c,self.d = transform(self.a,self.b,self.c,self.d,X)
+    --print (string.format('origb: %04x %04x %04x %04x', self.a, self.b, self.c, self.d))
   end
   self.buf = sub(s, math.floor(#s/64)*64 + 1, #s)
   return self
