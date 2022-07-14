@@ -106,9 +106,9 @@ Other camera models return an incorrect subscription reference address used for 
 
 (These issues expose themselves in the *ONVIF Device Manager* application, which is either unable to show events at all, or the event display stops working after a minute or so.)
 
-Confirmed to work: E1Pro, C1Pro, RLC-410W, RLC-411S, RLC-411WS, RLC-422, RLC-520, RLC-820A, RLC-822A
+Confirmed to work: E1Pro, C1Pro, RLC-410W, RLC-411S, RLC-411WS, RLC-422, RLC-510WA, RLC-520, RLC-820A, RLC-822A
 
-Confirmed *not* to work (cannot be discovered):  Model E1, 510W   
+Confirmed *not* to work (cannot be discovered):  Model E1   
 
 ### Hikvision
 - ONVIF must be enabled and a specific ONVIF UserID and Password defined with at least 'Media user' access level (Network->Advanced Settings->Integration Protocol)
@@ -129,3 +129,8 @@ Confirmed to work: R2 V4
 
 ### Axis
 Confirmed to work: 
+- M1045-LW, M1065-LW,  M3044-WV
+- M1004-W (video streaming only, no motion alerts)
+
+### TP-Link TAPO
+There is a known problem with subscribing to motion events, however video streaming is functional
