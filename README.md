@@ -119,7 +119,7 @@ Confirmed *not* to work (cannot be discovered):  Model E1
 
 - Video format must be H264 or H264+ for video streaming to work in the SmartThings mobile app.  Due to SmartThings limitations the maximum size for screen resolution is 1920 x 1080
 
-Confirmed to work:  DS-2CD2335FWD-I, DS-2DE4215IW
+Confirmed to work:  DS-2CD2335FWD-I, DS-2DE4215IW, 2CD2185FWD-I and 2CD2185FWD-IS
 
 ### Annke
 Confirmed to work:  ANNKE C800 4K PoE (Model designation: I91BF)
