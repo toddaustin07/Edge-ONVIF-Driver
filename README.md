@@ -135,5 +135,6 @@ Confirmed to work:
 - M1004-W (video streaming only, no motion alerts)
 
 ### TP-Link TAPO
-There is a known problem with subscribing to motion events, however video streaming is functional
+There is a known problem with subscribing to motion events, however video streaming is functional.
+
 *UPDATE*:  I have a test version of the driver that appears to solve the motion events issue with Tapo cameras.  Please contact me for access.
