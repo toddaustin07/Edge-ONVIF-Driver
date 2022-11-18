@@ -106,7 +106,7 @@ Other earlier camera models return an incorrect subscription reference address u
 
 (These issues expose themselves in the *ONVIF Device Manager* application, which is either unable to show events at all, or the event display stops working after a minute or so.)
 
-Some of the more recent camera models have a settings option which must be enabled in via the Reolink ***desktop*** application.  (The setting is not found in the Reolink mobile app!)  Look for an **RTSP** setting and enable it.  You should then see an ONVIF option which must also be turned on.
+Some of the more recent camera models have a settings option which must be enabled in via the Reolink ***desktop*** application.  (The setting is not found in the Reolink mobile app!)  Look for an **RTSP** setting under [Network/Advanced/Port](https://community.smartthings.com/t/st-edge-onvif-compliant-ip-camera-motion-detection-video-streaming-testers-wanted/242326/435?u=taustin) and enable it.  You should then see an ONVIF option which must also be turned on.
 
 Confirmed to work: E1Pro, E1 Zoom PTZ Indoor Wi-Fi, C1Pro, RLC-410W, RLC-411S, RLC-411WS, RLC-422, RLC-510WA, RLC-520, RLC-820A, RLC-822A, RLC-823A
 
