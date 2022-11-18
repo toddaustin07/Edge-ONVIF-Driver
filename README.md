@@ -102,11 +102,13 @@ Many Reolink cameras should work with this driver, but not all.
 
 There are some anomolies in the Reolink ONVIF implementation (Reolink models are not offically conformant). For example, there is a bug in the event subscription renewal function where the camera does not set the proper subscription termination time.  However this particular issue should not cause any apparent problems to the user.
 
-Other camera models return an incorrect subscription reference address used for subscription renewal requests, however this known issue is accounted for in the driver code.  
+Other earlier camera models return an incorrect subscription reference address used for subscription renewal requests, however this known issue is accounted for in the driver code.  
 
 (These issues expose themselves in the *ONVIF Device Manager* application, which is either unable to show events at all, or the event display stops working after a minute or so.)
 
-Confirmed to work: E1Pro, E1 Zoom PTZ Indoor Wi-Fi, C1Pro, RLC-410W, RLC-411S, RLC-411WS, RLC-422, RLC-510WA, RLC-520, RLC-820A, RLC-822A
+Some of the more recent camera models have a settings option which must be enabled in via the Reolink ***desktop*** application.  (The setting is not found in the Reolink mobile app!)  Look for an **RTSP** setting and enable it.  You should then see an ONVIF option which must also be turned on.
+
+Confirmed to work: E1Pro, E1 Zoom PTZ Indoor Wi-Fi, C1Pro, RLC-410W, RLC-411S, RLC-411WS, RLC-422, RLC-510WA, RLC-520, RLC-820A, RLC-822A, RLC-823A
 
 Confirmed *not* to work (cannot be discovered):  Model E1   
 
