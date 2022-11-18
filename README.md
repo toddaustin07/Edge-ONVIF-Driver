@@ -136,3 +136,4 @@ Confirmed to work:
 
 ### TP-Link TAPO
 There is a known problem with subscribing to motion events, however video streaming is functional
+*UPDATE*:  I have a test version of the driver that appears to solve the motion events issue with Tapo cameras.  Please contact me for access.
