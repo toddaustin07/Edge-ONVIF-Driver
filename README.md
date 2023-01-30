@@ -123,6 +123,9 @@ Confirmed *not* to work (cannot be discovered):  Model E1
 
 Confirmed to work:  DS-2CD2335FWD-I, DS-2DE4215IW, 2CD2185FWD-I and 2CD2185FWD-IS
 
+### Interlogix
+Confirmed to work: TVT-5301 and TVW-5302
+
 ### Annke
 Confirmed to work:  ANNKE C800 4K PoE (Model designation: I91BF)
 
