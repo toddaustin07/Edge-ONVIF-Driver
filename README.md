@@ -18,7 +18,7 @@ Note:  If a camera cannot be discovered, it could be due to any of these reasons
 * it may not support ONVIF
 * it is on a different subnet from your SmartThings hub
 * it is behind a firewall/VPN.
-* you are using IP address that are not in the standard private IP address range
+* your camera is using an IP address that is not in the standard private IP address range
 
 ## Usage
 
