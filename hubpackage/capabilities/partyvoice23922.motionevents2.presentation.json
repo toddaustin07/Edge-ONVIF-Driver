@@ -5,7 +5,7 @@
     },
     "detailView": [
         {
-            "label": "Motion Events",
+            "label": "{{i18n.label}}",
             "displayType": "switch",
             "switch": {
                 "command": {

@@ -240,6 +240,20 @@ local function add_XML_header(xml, item)
 end
 
 
+local function getdevinfo(device, key)
+
+  local infolist = device:get_field('onvif_info')
+  
+  for _, item in ipairs(infolist) do
+  
+    if item:match('(%w+): ') == key then
+      
+      return item:match(key .. ': (.+)$')
+    end
+  end
+  
+end
+
 
 return {
 	  xml_to_table = xml_to_table,
@@ -249,4 +263,5 @@ return {
           disptable = disptable,
 	  hextoint = hextoint,
 	  add_XML_header = add_XML_header,
+	  getdevinfo = getdevinfo,
 }

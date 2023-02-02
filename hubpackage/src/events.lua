@@ -31,6 +31,7 @@ local common = require "common"
 
 local initflag = false
 local eventservers = {}
+local shutdown = false
 
 local eventing_thread
 
@@ -123,7 +124,7 @@ end
 
 
 -- Handle event connections from device
-local function eventaccept_handler(_, eventsock)
+local function eventaccept_handler(eventsock)
 
   local client, accept_err = eventsock:accept()
   
@@ -151,9 +152,6 @@ local function eventaccept_handler(_, eventsock)
 
 	if eventserver then
 	
-		--eventserver.read_thread = Thread.Thread(onvifDriver, 'read handler thread')
-		--eventserver.read_thread:register_socket(client, eventread_handler)
-	
 		cosock.spawn(function()
 		
 			local data = process_http_message(client)
@@ -165,7 +163,7 @@ local function eventaccept_handler(_, eventsock)
 					local parsed_xml = common.xml_to_table(string.sub(data, xmldata_index, #data))
 
 					if parsed_xml then
-						--log.debug('Received event message')
+						log.debug('Received event message')
 						
 						parsed_xml = common.strip_xmlns(parsed_xml)
 
@@ -222,7 +220,16 @@ local function init(driver, eventserver)
 			eventserver.eventing_thread = Thread.Thread(driver, 'event server thread')
 		end
   
-		eventserver.eventing_thread:register_socket(eventserver.sock, eventaccept_handler)
+		shutdown = false
+		
+		cosock.spawn(function()
+				while shutdown == false do
+					eventaccept_handler(eventserver.sock)
+				end	
+			end)
+		
+		
+		
 		log.info ("Event server started and listening on: " .. ip .. ":" .. port)
 
 		return true
@@ -287,8 +294,8 @@ local function renew_subscribe(eventserver)
 	 
 	if response then
 	
-		log.debug('Subscription renewal response:')
-		common.disptable(response, ' ', 10)
+		--log.debug('Subscription renewal response:')
+		--common.disptable(response, ' ', 10)
 		
 		local renew_time = proc_renew_time(eventserver, response)
 		
@@ -338,8 +345,8 @@ local function _do_subscribe(eventserver)
 	
 	if response then
 	
-		log.debug('Subscription response:')
-		common.disptable(response, ' ', 10)
+		--log.debug('Subscription response:')
+		--common.disptable(response, ' ', 10)
 		
 		-- Check for possible SubscriptionId reference parameter (e.g. Axis cameras)
 		
@@ -471,10 +478,13 @@ local function shutdownserver(driver, device)
 
 	if eventserver then
 		--eventserver.eventing_thread:unregister_socket(eventserver.sock)
-		device.thread:unregister_socket(eventserver.sock)
+		--device.thread:unregister_socket(eventserver.sock)
+		shutdown = true
 		eventserver.sock:close()
 		eventserver.eventing_thread:close()
-		driver:cancel_timer(eventserver.renew_timer)
+		if eventserver.renew_timer then
+		  driver:cancel_timer(eventserver.renew_timer)
+		end
 		
 		log.info ('Event server shutdown for device', device.label)
 	end	

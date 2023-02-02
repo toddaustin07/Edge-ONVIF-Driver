@@ -488,6 +488,10 @@ local function send_request(device, reqname, serviceURI, request)
   
   if (http_code == 200) and http_response then
   
+    if reqname == 'GetServices' then
+      print (http_response)
+    end
+    
     local xml_head, xml_body, fault_text = parse_XMLresponse(http_response)
     
     if xml_body and not fault_text then
@@ -849,29 +853,9 @@ local function Subscribe(device, event_serviceURI, listenURI)
 -- <s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope
 
 
-  local request_part1a_V1 = [[
-<s:Envelope
-    xmlns:s="http://www.w3.org/2003/05/soap-envelope"
-    xmlns:wsa="http://www.w3.org/2005/08/addressing"
-    xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2"
-    xmlns:tet="http://www.onvif.org/ver10/events/wsdl"
-    xmlns:tns1="http://www.onvif.org/ver10/topics"
-    xmlns:tt="http://www.onvif.org/ver10/schema">
-  <s:Header>
-    <wsa:Action s:mustUnderstand="1">http://docs.oasis-open.org/wsn/bw-2/NotificationProducer/SubscribeRequest</wsa:Action>
-    <wsa:ReplyTo><wsa:Address>http://www.w3.org/2005/08/addressing/anonymous</wsa:Address></wsa:ReplyTo>
-  </s:Header>
-  <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-    <wsnt:Subscribe>
-      <wsnt:ConsumerReference>
-        <wsa:Address>]]
-        
-  local request_part1b_V1 = [[</wsa:Address>
-      </wsnt:ConsumerReference>
-]]
 
 
-  local request_part1a_V2 = [[
+  local request_part1a = [[
 <s:Envelope
     xmlns:s="http://www.w3.org/2003/05/soap-envelope"
     xmlns:wsa="http://www.w3.org/2005/08/addressing"
@@ -887,7 +871,10 @@ local function Subscribe(device, event_serviceURI, listenURI)
       <ConsumerReference>
         <wsa:Address>]]
 
-  local request_part1b_V2 = [[</wsa:Address>
+    
+  -- xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2"
+
+  local request_part1b = [[</wsa:Address>
       </ConsumerReference>
 ]]
   
@@ -912,15 +899,7 @@ local function Subscribe(device, event_serviceURI, listenURI)
       </tet:Filter>
 ]]
 
-  local request_lastpart_V1 = [[
-      <wsnt:InitialTerminationTime>PT10M</wsnt:InitialTerminationTime>
-    </wsnt:Subscribe>
-  </s:Body>
-</s:Envelope>
-]]
-
-
-  local request_lastpart_V2 = [[
+  local request_lastpart = [[
       <InitialTerminationTime>PT10M</InitialTerminationTime>
     </Subscribe>
   </s:Body>
@@ -941,21 +920,36 @@ local function Subscribe(device, event_serviceURI, listenURI)
       <wsnt:InitialTerminationTime xsi:nil="true"/>                         example permanant subscription
 --]]
 
-  local request = request_part1a_V2 .. listenURI .. request_part1b_V2 .. request_lastpart_V2
-  --local request
+  local request
   
-  --[[
-  if (device.preferences.motionrule == 'cell') or (device.preferences.motionrule == nil) then
-      request = request_part1a .. listenURI .. request_part1b .. cellmotion_filter .. request_lastpart
-  elseif device.preferences.motionrule == 'alarm' then
-    request = request_part1a .. listenURI .. request_part1b .. motionalarm_filter .. request_lastpart
-  else
-    log.warn ('Unexpected motionrule setting value; no filter applied')
-    request = request_part1a .. listenURI .. request_part1b .. request_lastpart
+  -- Omit filter for Tapo Cameras
+  local mfgr = common.getdevinfo(device, 'Manufacturer')
+  log.debug ('Manufacturer: ', mfgr)
+  local name = common.getdevinfo(device, 'Name')
+  log.debug ('Name: ', name)
+  --if mfgr then
+  if (string.find(string.lower(mfgr), 'tp-link') or string.find(string.lower(name), 'tapo')) then
+    log.debug ('TP-Link Tapo camera found')
   end
-  --]]
+  request = request_part1a .. listenURI .. request_part1b .. request_lastpart
+  --  end
+  --end
+  
+  if not request then
+    if (device.preferences.motionrule == 'cell') or (device.preferences.motionrule == nil) then
+      request = request_part1a .. listenURI .. request_part1b .. cellmotion_filter .. request_lastpart
+    elseif device.preferences.motionrule == 'alarm' then
+      request = request_part1a .. listenURI .. request_part1b .. motionalarm_filter .. request_lastpart
+    else
+      log.warn ('Unexpected motionrule setting value; no filter applied')
+      request = request_part1a .. listenURI .. request_part1b .. request_lastpart
+    end
+  end
   
   request = augment_header(request, event_serviceURI)
+  
+  log.debug ('Subscribe request:')
+  log.debug (request)
   
   local xml_body = send_request(device, 'Subscribe', event_serviceURI, request)
     

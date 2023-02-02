@@ -1,0 +1,30 @@
+{
+    "id": "partyvoice23922.linecross",
+    "version": 1,
+    "status": "proposed",
+    "name": "linecross",
+    "ephemeral": false,
+    "attributes": {
+        "linecross": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "value": {
+                        "title": "ActivityState",
+                        "type": "string",
+                        "enum": [
+                            "active",
+                            "inactive"
+                        ]
+                    }
+                },
+                "additionalProperties": false,
+                "required": [
+                    "value"
+                ]
+            },
+            "enumCommands": []
+        }
+    },
+    "commands": {}
+}

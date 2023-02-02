@@ -38,6 +38,7 @@ local listen_port = 0
 local ids_found = {}                -- used to filter duplicate usn's during discovery
 local unfoundlist = {}
 local rediscovery_thread
+local thread_status = false
 local rediscover_timer
 
 
@@ -105,71 +106,79 @@ local function parse(data)
 	    log.debug ('\tResponse not from NetworkVideoTransmitter; ignored')
 	    return
 	  end
+	else
+	  log.warn ('Discovery response missing ProbMatch.Types element; ignored')
+	  return
 	end
 	
         metadata.uri = {}
         
-	local service_addrs = parsed_xml['Envelope']['Body']['ProbeMatches']['ProbeMatch']['XAddrs']
-	for addr in service_addrs:gmatch('[^ ]+') do
-	
-	  -- Address format possibilities:
-	  --  IPV4: http://192.168.0.64/onvif/device_service
-	  --  IPV6: http://[fe80::66db:8bff:fe61:56da]/onvif/device_service
-	  --  hostname:  http://AminDSNEW:5357/a0d7119e-8b35-42a2-8db9-d7a26ab0b761
-	
-	  -- is it an IPV4 address?
-	  local ipv4 = addr:match('^(http://)([%d%.:]+)/')
-	  if ipv4 then
-	    metadata.uri.device_service = addr
-	    break
-	  end
+	if common.is_element(parsed_xml, {'Envelope', 'Body', 'ProbeMatches', 'ProbeMatch', 'XAddrs'}) then
+	  local service_addrs = parsed_xml['Envelope']['Body']['ProbeMatches']['ProbeMatch']['XAddrs']
+	  for addr in service_addrs:gmatch('[^ ]+') do
 	  
-	  -- is it a host name?
-	  local hostname = addr:match('^(http://)([%w:]+)/')
-	  if hostname then
-	    metadata.uri.device_service = addr
-	    break
-	  end
-	end
-	
-	if not metadata.uri.device_service then
-	  log.error ('Could not find device service IPV4 address')
-	end
-	
-	metadata.scopes = {}
-	metadata.profiles = {}
-	metadata.vendname = ''
-	metadata.location = ''
-	metadata.hardware = ''
-	
-	if common.is_element(parsed_xml, {'Envelope', 'Body', 'ProbeMatches', 'ProbeMatch', 'Scopes'}) then
-	
-	  local scopestring = parsed_xml['Envelope']['Body']['ProbeMatches']['ProbeMatch']['Scopes']
-	  for item in scopestring:gmatch('[^ ]+') do
+	    -- Address format possibilities:
+	    --  IPV4: http://192.168.0.64/onvif/device_service
+	    --  IPV6: http://[fe80::66db:8bff:fe61:56da]/onvif/device_service
+	    --  hostname:  http://AminDSNEW:5357/a0d7119e-8b35-42a2-8db9-d7a26ab0b761
 	  
-	    table.insert(metadata.scopes, item)
-	    if item:find('/name/') then
-	      metadata.vendname = item:match('/name/(.+)$')
-	    elseif item:find('/location/') then
-	      metadata.location = item:match('/location/(.+)$')
-	    elseif item:find('/hardware/') then
-	      metadata.hardware = item:match('/hardware/(.+)$')
-	    elseif item:find('/Profile/') then
-	      table.insert(metadata.profiles, item:match('/Profile/(.+)$'))
+	    -- is it an IPV4 address?
+	    local ipv4 = addr:match('^(http://)([%d%.:]+)/')
+	    if ipv4 then
+	      metadata.uri.device_service = addr
+	      break
 	    end
 	    
+	    -- is it a host name?
+	    local hostname = addr:match('^(http://)([%w:]+)/')
+	    if hostname then
+	      metadata.uri.device_service = addr
+	      break
+	    end
 	  end
+	  
+	  if not metadata.uri.device_service then
+	    log.error ('Could not find device service IPV4 address')
+	  end
+	  
+	  metadata.scopes = {}
+	  metadata.profiles = {}
+	  metadata.vendname = ''
+	  metadata.location = ''
+	  metadata.hardware = ''
+	  
+	  if common.is_element(parsed_xml, {'Envelope', 'Body', 'ProbeMatches', 'ProbeMatch', 'Scopes'}) then
+	  
+	    local scopestring = parsed_xml['Envelope']['Body']['ProbeMatches']['ProbeMatch']['Scopes']
+	    for item in scopestring:gmatch('[^ ]+') do
+	    
+	      table.insert(metadata.scopes, item)
+	      if item:find('/name/') then
+		metadata.vendname = item:match('/name/(.+)$')
+	      elseif item:find('/location/') then
+		metadata.location = item:match('/location/(.+)$')
+	      elseif item:find('/hardware/') then
+		metadata.hardware = item:match('/hardware/(.+)$')
+	      elseif item:find('/Profile/') then
+		table.insert(metadata.profiles, item:match('/Profile/(.+)$'))
+	      end
+	      
+	    end
+	  else
+	    log.warn ('No Scopes found in discovery response')
+	  end
+	  
+	  if common.is_element(parsed_xml, {'Envelope', 'Body', 'ProbeMatches', 'ProbeMatch', 'EndpointReference', 'Address'}) then
+	    metadata.urn = parsed_xml['Envelope']['Body']['ProbeMatches']['ProbeMatch']['EndpointReference']['Address']
+	  else
+	    log.warn ('EndpointReference Address not found in discovery response')
+	  end
+	  
+	  return metadata
+	  
 	else
-	  log.warn ('No Scopes found in discovery response')
+	  log.warn ('Discovery response missing ProbeMatch.XAddrs element; ignored')
 	end
-	
-	if common.is_element(parsed_xml, {'Envelope', 'Body', 'ProbeMatches', 'ProbeMatch', 'EndpointReference', 'Address'}) then
-	  metadata.urn = parsed_xml['Envelope']['Body']['ProbeMatches']['ProbeMatch']['EndpointReference']['Address']
-	else
-	  log.warn ('EndpointReference Address not found in discovery response')
-	end
-	
-	return metadata
         
       elseif common.is_element(parsed_xml, {'Envelope', 'Body', 'Fault'}) then
 	log.error ('SOAP ERROR:', parsed_xml['Envelope']['Body']['Fault']['Reason']['Text'][1])
@@ -302,6 +311,7 @@ local function proc_rediscover()
       rediscover_timer = rediscovery_thread:call_with_delay(50, proc_rediscover, 're-discover routine')
     else
       rediscovery_thread:close()
+      thread_status = false
     end
   end
 end
@@ -312,8 +322,9 @@ local function schedule_rediscover(driver, device, delay, callback)
   if next(unfoundlist) == nil then
     unfoundlist[device.device_network_id] = { ['device'] = device, ['callback'] = callback }
     log.warn (string.format('\tScheduling re-discover routine in %d seconds', delay))
-    if not rediscovery_thread then
+    if thread_status == false then
       rediscovery_thread = Thread.Thread(driver, 'rediscover thread')
+      thread_status = true
     end
     rediscover_timer = rediscovery_thread:call_with_delay(delay, proc_rediscover, 're-discover routine')
   else

@@ -183,6 +183,7 @@ local function build_authheader(device, method, fullurl, authdata)
     
     local opaque = ''
     local qop = ''
+    local algorithm = ''
     local clientnonce = ''
     local nc = ''
     
@@ -196,10 +197,14 @@ local function build_authheader(device, method, fullurl, authdata)
       nc = 'nc=' .. h_nonce_count
     end
     
+    if authdata.algorithm then
+      algorithm = 'algorithm=MD5, '
+    end
+    
     local authheader =  'Digest ' .. 
                         'username="' .. userid .. '", ' ..
                         'realm="' .. authdata.realm .. '", ' ..
-                        'algorithm=MD5, ' ..
+                        algorithm ..
                         'nonce="' .. authdata.nonce .. '", ' ..
                         'uri="' .. uri .. '", ' ..
                         'response="' .. response .. '"' ..

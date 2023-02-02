@@ -1,0 +1,70 @@
+{
+    "dashboard": {
+        "states": [
+            {
+                "label": "{{linecross.value}}",
+                "alternatives": [
+                    {
+                        "key": "active",
+                        "value": "Active",
+                        "type": "active"
+                    },
+                    {
+                        "key": "inactive",
+                        "value": "Inactive",
+                        "type": "inactive"
+                    }
+                ]
+            }
+        ],
+        "actions": []
+    },
+    "detailView": [
+        {
+            "label": "{{i18n.label}}",
+            "displayType": "state",
+            "state": {
+                "label": "{{linecross.value}}",
+                "alternatives": [
+                    {
+                        "key": "active",
+                        "value": "Active",
+                        "type": "active"
+                    },
+                    {
+                        "key": "inactive",
+                        "value": "Inactive",
+                        "type": "inactive"
+                    }
+                ]
+            }
+        }
+    ],
+    "automation": {
+        "conditions": [
+            {
+                "label": "Line Cross",
+                "displayType": "list",
+                "list": {
+                    "alternatives": [
+                        {
+                            "key": "active",
+                            "value": "Active",
+                            "type": "active"
+                        },
+                        {
+                            "key": "inactive",
+                            "value": "Inactive",
+                            "type": "inactive"
+                        }
+                    ],
+                    "value": "linecross.value",
+                    "valueType": "string"
+                }
+            }
+        ],
+        "actions": []
+    },
+    "id": "partyvoice23922.linecross",
+    "version": 1
+}

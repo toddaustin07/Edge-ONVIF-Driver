@@ -41,8 +41,6 @@ local cap_status = capabilities["partyvoice23922.onvifstatus"]
 local cap_info = capabilities["partyvoice23922.onvifinfo"]
 local cap_refresh = capabilities["partyvoice23922.refresh"]
 local cap_motion = capabilities["partyvoice23922.motionevents2"]
-local linecross_capname = "partyvoice23922.linecross"
-local cap_linecross = capabilities[linecross_capname]
 
 -- Module Variables
 
@@ -53,8 +51,6 @@ local newly_added = {}
 local discovered_num = 1
 
 local ONVIFDEVSERVPATH = '/onvif/device_service'
-
-local LINECROSSREVERTDELAY = 1
 
 -- Global Variables
 onvifDriver = {}
@@ -126,149 +122,62 @@ local function init_infolist(device, ipcam)
 end
 
 
-local function handle_motion_event(device, cam_func, msg)
-
-  local name, value
-
-  if common.is_element(msg, {'Message', 'Message', 'Data', 'SimpleItem', '_attr', 'Name'}) then
-      
-    name = msg.Message.Message.Data.SimpleItem._attr.Name
-    value = msg.Message.Message.Data.SimpleItem._attr.Value
-
-    if name == cam_func.motion_eventrule.item then
-      log.info (string.format('Message for %s: %s', device.label, msg.Topic[1]))
-      log.info (string.format('\tMotion value = "%s"', value))
-      
-      if (value == 'true') or (value == '1') then
-        if (socket.gettime() - device:get_field('LastMotion')) >= device.preferences.minmotioninterval then
-          device:emit_event(capabilities.motionSensor.motion('active'))
-          device:set_field('LastMotion', socket.gettime())
-          if device.preferences.autorevert == 'yesauto' then
-            device.thread:call_with_delay(device.preferences.revertdelay, function() 
-              device:emit_event(capabilities.motionSensor.motion('inactive')); end, 'revert motion')
-          end
-        else
-          log.info ('Motion event ignored due to configured min interval')
-        end
-        
-      else
-        device:emit_event(capabilities.motionSensor.motion('inactive'))
-      end
-    else
-      log.error ('Item name mismatch with event message:', name)
-    end
-  else
-    log.error ('Missing event item name/value')
-  end
-end
-
-
-local function handle_linecross_event(device, cam_func, msg)
-  
-  if device:supports_capability_by_id(linecross_capname) == false then; return; end
-  
-  local name, value
-
-  if common.is_element(msg, {'Message', 'Message', 'Data', 'SimpleItem', '_attr', 'Name'}) then
-    name = msg.Message.Message.Data.SimpleItem._attr.Name
-    value = msg.Message.Message.Data.SimpleItem._attr.Value
-
-    if name == cam_func.linecross_eventrule.item then
-      log.info (string.format('Linecross notification for %s: %s', device.label, msg.Topic[1]))
-      log.info (string.format('\tValue = "%s"', value, type(value)))
-    
-      if type(value) == 'string' then; value = string.lower(value); end
-      
-      if (value ~= 'false') and (value ~= '0') then
-        if (socket.gettime() - device:get_field('LastLinecross')) >= device.preferences.minlinecrossinterval then
-          device:emit_component_event(device.profile.components.line, cap_linecross.linecross('active'))
-          device:set_field('LastLinecross', socket.gettime())
-          device.thread:call_with_delay(LINECROSSREVERTDELAY, function() 
-              device:emit_component_event(device.profile.components.line, cap_linecross.linecross('inactive'))
-            end, 'revert linecross')
-        else
-          log.info ('Linecross event ignored due to configured min interval')
-        end
-      else
-        device:emit_component_event(device.profile.components.line, cap_linecross.linecross('inactive'))
-      end
-    else
-      log.error ('Item name mismatch with event message:', name)
-    end
-  else
-    log.error ('Missing linecross event item name/value')
-  end
-end
-
-
-local function handle_tamper_event(device, cam_func, msg)
-
-  if device:supports_capability_by_id('tamperAlert') == false then; return; end
-
-  local name, value
-
-  if common.is_element(msg, {'Message', 'Message', 'Data', 'SimpleItem', '_attr', 'Name'}) then
-    name = msg.Message.Message.Data.SimpleItem._attr.Name
-    value = msg.Message.Message.Data.SimpleItem._attr.Value
-
-    if name == cam_func.tamper_eventrule.item then
-      log.info (string.format('Tamper notification for %s: %s', device.label, msg.Topic[1]))
-      log.info (string.format('\tValue = "%s"', value))
-    
-      if (value == 'true') or (value == '1') then
-        if (socket.gettime() - device:get_field('LastTamper')) >= device.preferences.mintamperinterval then
-          device:emit_component_event(device.profile.components.tamper, capabilities.tamperAlert.tamper('detected'))
-          device:set_field('LastTamper', socket.gettime())
-          if device.preferences.autorevert == 'yesauto' then
-            device.thread:call_with_delay(device.preferences.revertdelay, function() 
-                device:emit_component_event(device.profile.components.tamper, capabilities.tamperAlert.tamper('clear'))
-              end, 'revert tamper')
-          end
-        else
-          log.info ('Tamper event ignored due to configured min interval')
-        end
-        
-      else
-        device:emit_component_event(device.profile.components.tamper, capabilities.tamperAlert.tamper('clear'))
-      end
-    else
-      log.error ('Item name mismatch with event message:', name)
-    end
-  else
-    log.error ('Missing tamper event item name/value')
-  end
-end
-
-
 local function event_handler(device, msgs)
 
   local function proc_msg(device, cam_func, msg)
   
-    if not msg.Topic then
-      log.error ('Missing topic in event message')
-      return
+    local valid = false
+  
+    if cam_func.motion_events == true then
+    
+      local name, value
+      if not msg.Topic then
+        log.error ('Missing topic in event message')
+      end
+    
+      local topic = msg.Topic[1]
+    
+      if topic:find(cam_func.motion_eventrule.topic, 1, 'plaintext') then
+      
+        if common.is_element(msg, {'Message', 'Message', 'Data', 'SimpleItem', '_attr', 'Name'}) then
+      
+          name = msg.Message.Message.Data.SimpleItem._attr.Name
+          value = msg.Message.Message.Data.SimpleItem._attr.Value
+      
+          if name == cam_func.motion_eventrule.item then
+            log.info (string.format('Message for %s: %s', device.label, topic))
+            log.info (string.format('\tMotion value = "%s"', value))
+            valid = true
+            
+            if (value == 'true') or (value == '1') then
+              if (socket.gettime() - device:get_field('LastMotion')) >= device.preferences.minmotioninterval then
+                device:emit_event(capabilities.motionSensor.motion('active'))
+                device:set_field('LastMotion', socket.gettime())
+                if device.preferences.autorevert == 'yesauto' then
+                  device.thread:call_with_delay(device.preferences.revertdelay, function() 
+                    device:emit_event(capabilities.motionSensor.motion('inactive')); end, 'revert motion')
+                end
+              else
+                log.info ('Motion event ignored due to configured min interval')
+              end
+              
+            else
+              device:emit_event(capabilities.motionSensor.motion('inactive'))
+            end
+          else
+            log.error ('Item name mismatch with event message:', name)
+          end
+        else
+          log.error ('Missing event item name/value')
+        end
+      end
     end
-  
-    local topic = msg.Topic[1]
-  
-    -- If Motion event
-    if topic:find(cam_func.motion_eventrule.topic, 1, 'plaintext') and (cam_func.motion_events == true) then
-      handle_motion_event(device, cam_func, msg)
-      
-    -- If Tamper event
-    elseif topic:find(cam_func.tamper_eventrule.topic, 1, 'plaintext') and (cam_func.tamper_events == true) then
-      handle_tamper_event(device, cam_func, msg)
-     
-    -- If Line Cross event
-    elseif topic:find(cam_func.linecross_eventrule.topic, 1, 'plaintext') and (cam_func.linecross_events == true) then
-      handle_linecross_event(device, cam_func, msg)
-      
-    else
-      log.warn(string.format('Received message for %s ignored (topic=%s)', device.label, topic))
+        
+    if valid == false then
+      log.warn(string.format('Received message for %s ignored (topic=%s)', device.label, msg.Topic[1]))
     end
   end
-        
-  ----------------------------------------------------------------------
+  ----
   
   local cam_func = device:get_field('onvif_func')
   
@@ -580,33 +489,6 @@ local function get_cam_config(device)
         
         -- GET EVENT PROPERTIES ----------------------------------------
         
-        local function parserule(ruletable)
-        
-          local l2topic, l2table
-          for rule2, ruletable2 in pairs(ruletable) do
-            if rule2 ~= '_attr' then
-              l2topic = rule2                         -- we'll only scan for the 2nd level part of topic in received events
-              l2table = ruletable2                    -- because some cams (e.g.Tapo) erroneously report linecross/tamper under CellMotionDetector
-              break
-            end
-          end
-          
-          if common.is_element(l2table, {'MessageDescription','Data','SimpleItemDescription','_attr','Name'}) then
-            local itemname = l2table.MessageDescription.Data.SimpleItemDescription._attr.Name
-            log.debug (string.format('\tL2 Topic: %s, name=%s', l2topic, itemname))
-            return true, { ['topic'] = l2topic, ['item'] = itemname }
-          else
-            log.error ('\tData item not found')
-          end
-          
-          return false
-        end
-        
-        
-        onvif_func.motion_events = false
-        onvif_func.tamper_events = false
-        onvif_func.linecross_events = false
-        
         if onvif_func.event_service_addr then
         
           local event_properties = commands.GetEventProperties(device, onvif_func.event_service_addr)
@@ -614,7 +496,6 @@ local function get_cam_config(device)
           if event_properties then 
             if event_properties['RuleEngine'] then
             
-              -- These motion rules appear to be standard across ONVIF cameras
               local CELLMOTION = { ['topic'] = 'RuleEngine/CellMotionDetector/Motion', ['item'] = 'IsMotion' }
               local MOTIONALARM = { ['topic'] = 'VideoSource/MotionAlarm', ['item'] = 'State' }
               
@@ -623,8 +504,7 @@ local function get_cam_config(device)
               local eventrule
               
               common.disptable(rules, '  ', 12)
-              
-              -- Check for configured Motion rule
+            
               if (device.preferences.motionrule == 'cell') or (device.preferences.motionrule == nil) then
             
                 if rules.CellMotionDetector then
@@ -632,7 +512,7 @@ local function get_cam_config(device)
                     if rules.CellMotionDetector.Motion.MessageDescription.Data.SimpleItemDescription._attr.Name == CELLMOTION.item then
                       motionOK = true
                       eventrule = CELLMOTION
-                      log.info ('CellMotionDetector found')
+                      log.debug ('CellMotionDetector found')
                     end
                   else
                     log.error ('isMotion item not found in CellMotionDetector XML')
@@ -644,6 +524,7 @@ local function get_cam_config(device)
               elseif device.preferences.motionrule == 'alarm' then
                 motionOK = true
                 eventrule = MOTIONALARM
+              
               end
               
               if motionOK == true then
@@ -651,50 +532,25 @@ local function get_cam_config(device)
                 onvif_func.motion_events = true
                 onvif_func.motion_eventrule = eventrule
               else
+                onvif_func.motion_events = false
                 log.warn ('Motion events not enabled')
               end
+              device:set_field('onvif_func', onvif_func)
               
-              -- Check for Tamper Rule
-              if rules.TamperDetector then                -- this assumes rule name consistency across brands
-                log.debug ('Found Tamper L1 Topic: TamperDetector')
-                
-                local enabled, eventrule = parserule(rules.TamperDetector)
-                
-                onvif_func.tamper_events = enabled
-                if enabled then
-                  onvif_func.tamper_eventrule = eventrule
-                  log.info ('Tamper events available')
-                end
-              end
-              
-              -- Check for Linecross Rule (exact topic and data item varies from brand to brand) :-(
-              for rule, ruletable in pairs(rules) do
-                
-                if string.find(rule, 'Line') and string.find(rule, 'Detector') then
-                  log.debug ('Found Line-crossed L1 Topic:', rule)
-                  
-                  local enabled, eventrule = parserule(ruletable)
-                  
-                  onvif_func.linecross_events = enabled
-                  if enabled then
-                    onvif_func.linecross_eventrule = eventrule
-                    log.info ('LineCross events available')
-                  end
-                end
-              end
-              
+              return true
+            
             else
               log.error ('Missing rule engine section in event properties response')
-            end
             
+            end      
           else
             log.error ('Event properties not available')
           end
-        end 
-        
-        device:set_field('onvif_func', onvif_func)
-        return true
-        
+        else -- event address not obtained; motion events disabled
+          onvif_func.motion_events = false
+          device:set_field('onvif_func', onvif_func)
+          return true
+        end
       else
         log.warn ('Userid/Password not configured:', device.label)
       end
@@ -710,15 +566,6 @@ local function get_cam_config(device)
 end
 
 
-local function resetlastevents(device)
-
-	device:set_field('LastMotion', socket.gettime() - device.preferences.minmotioninterval)
-  device:set_field('LastLinecross', socket.gettime() - device.preferences.minmotioninterval)
-  device:set_field('LastTamper', socket.gettime() - device.preferences.minmotioninterval)	
-
-end
-
-
 local function start_events(device)
 
   local cam_func = device:get_field('onvif_func')
@@ -731,7 +578,7 @@ local function start_events(device)
       cam_func.event_source_addr = response.SubscriptionReference.Address
       device:set_field('onvif_func', cam_func)
       
-			resetlastevents(device)
+      device:set_field('LastMotion', socket.gettime() - device.preferences.minmotioninterval)
       
       device:emit_component_event(device.profile.components.info, cap_status.status('Subscribed to events'))
       return true
@@ -763,27 +610,16 @@ function init_device(device)
     
     log.info(string.format('%s initialized', device.label))
     device:online()
-    device:set_field('init_retries', 0)
       
   else
     log.error ('Failed to initialize device', device.label)
     device:emit_component_event(device.profile.components.info, cap_status.status('Not responding'))
     
-    -- Device may no longer be available at known address, so schedule rediscovery
     if device:get_field('onvif_online') == false then
       device:offline()
       local discotype = device:get_field('onvif_disco').discotype
       if (discotype == nil) or (discotype == 'auto') then
         discover.schedule_rediscover(onvifDriver, device, 20, init_device)
-      end
-
-    -- Device didn't successfully respond for some reason; setup re-attempts
-    else
-      device:set_field('init_retries', device:get_field('init_retries') + 1)
-      if device:get_field('init_retries') < 5 then
-        onvifDriver:call_with_delay(14 + math.random(1, 8), function ()
-            device.thread:queue_event(init_device, device)
-          end)
       end
     end
   end
@@ -807,7 +643,7 @@ end
 
 local function handle_switch(driver, device, command)
 
-  log.debug (string.format('%s switch command received: %s', command.component, command.command))
+  log.debug (string.format('%s switch turned %s / %s', command.component, command.command, command.args.value))
   
   local cam_func = device:get_field('onvif_func')
   
@@ -877,13 +713,8 @@ end
 local function device_init(driver, device)
   
   log.debug(string.format("INIT handler for: <%s (%s)>", device.device_network_id, device.label))
-  
-  device:try_update_metadata({profile='onvif_cam.v3'})                                              				-- *** Remove for next update
-  device:emit_component_event(device.profile.components.line, cap_linecross.linecross('inactive'))  				-- *** Remove for next update
-  device:emit_component_event(device.profile.components.tamper, capabilities.tamperAlert.tamper('clear'))		-- *** Remove for next update
 
-  device:set_field('init_retries', 0)
-	resetlastevents(device)
+  --init_device(device)
   device.thread:queue_event(init_device, device)
   
 end
@@ -923,8 +754,6 @@ local function device_added (driver, device)
     
     device:emit_event(capabilities.motionSensor.motion('inactive'))
     device:emit_event(cap_motion.motionSwitch('Off'))
-    device:emit_component_event(device.profile.components.line, cap_linecross.linecross('inactive'))
-    device:emit_component_event(device.profile.components.tamper, capabilities.tamperAlert.tamper('clear'))
     device:emit_component_event(device.profile.components.info, cap_info.info(" "))
     device:emit_component_event(device.profile.components.info, cap_status.status('Not configured'))
     
@@ -1073,7 +902,9 @@ local function discovery_handler(driver, _, should_continue)
   local cycle = 0
   local newcreates = 0
 
-  while should_continue() and (cycle < 4) do
+  -- We'll limit our discovery to repeat_count to minimize unnecessary LAN traffic
+
+  while should_continue() do
   
     cycle = cycle + 1
     log.info (string.format('Starting Discovery cycle #%s', cycle))
@@ -1100,7 +931,7 @@ local function discovery_handler(driver, _, should_continue)
                         vendlabel = name
                       end
                       
-                      local devprofile = 'onvif_cam.v3'
+                      local devprofile = 'onvif_cam.v1'
 
                       local create_device_msg = {
                         type = "LAN",
@@ -1176,7 +1007,7 @@ onvifDriver = Driver("onvifDriver", {
   }
 })
 
-log.debug("**** ONVIF Driver V1.3 Start ****")
+log.debug("**** ONVIF Driver V1.2 Start ****")
 
 devcreate_sem = Semaphore()
 
