@@ -11,7 +11,7 @@ Use my shared projects Edge channel to complete these steps:
 2. Choose to install driver 'ONVIF Video Camera V1'
 
 ### Camera device discovery and SmartThings device creation
-Once the driver is installed to your hub, use the SmartThings mobile app to initiate an Add device -> Scan nearby devices.  Your ONVIF-compliant IP cameras will be discovered and SmartThings devices added to the 'No room assigned' room.
+Once the driver is installed to your hub, use the SmartThings mobile app to initiate an Add device -> Scan nearby devices.  Your ONVIF-compliant IP cameras will be discovered and SmartThings devices added to the 'No room assigned' room OR the room where your SmartThings hub device is located.
 
 Note:  If a camera cannot be discovered, it could be due to any of these reasons:
 * you haven't enabled ONVIF or ONVIF discovery for the camera in the manufacturer's app
