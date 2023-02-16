@@ -126,6 +126,9 @@ Confirmed *not* to work (cannot be discovered):  Model E1
 
 - Video format must be H264 or H264+ for video streaming to work in the SmartThings mobile app.  Due to SmartThings limitations the maximum size for screen resolution is 1920 x 1080
 
+- Notes regarding motion detection configuration through the Hikvision app:
+  - Motion detection and line crossing events have multiple options and sensitivity settings. There is scope for many areas to be detected in any shape or form.  Line crossing can be set for both directions, left cross, right cross or entrance/exit - with sensitivity settings and a maximum of 4 different lines.  Setting your cameras incorrectly can cause repeated false alerts!
+
 Confirmed to work:  DS-2CD2335FWD-I, DS-2DE4215IW, 2CD2185FWD-I and 2CD2185FWD-IS
 
 ### Interlogix
