@@ -147,3 +147,6 @@ Confirmed to work:
 
 ### TP-Link TAPO
 Confirmed to work: c100/200/300
+
+### Duhua
+Must disable authentication
