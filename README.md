@@ -150,3 +150,6 @@ Confirmed to work: c100/200/300
 
 ### Duhua
 Must disable authentication
+
+#### TRENDnet TV-IP321PI
+Be sure that the video sub-stream is configured for H.264
