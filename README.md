@@ -1,7 +1,7 @@
 # SmartThings Edge ONVIF Driver
 Supports motion detection and streaming from ONVIF-compliant IP cameras
 
-**WARNING:**  DUE TO LACK OF OFFICIAL SMARTTHINGS EDGE SUPPORT FOR VIDEO STREAMING, MOST USERS MAY FIND THAT VIDEO STREAMING WILL NOT WORK.  Therefore, for most users, the usefulness of this driver will be limited to motion notifications.
+**WARNING:**  DUE TO LACK OF OFFICIAL SMARTTHINGS EDGE SUPPORT FOR VIDEO STREAMING, MOST (but not all) USERS MAY FIND THAT VIDEO STREAMING WILL NOT WORK.  Therefore, for most users, the usefulness of this driver will be limited to motion notifications.
 
 ## Pre-requisites
 - SmartThings hub capable of running Edge platform
